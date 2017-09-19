@@ -36,23 +36,12 @@ import tensorflow as tf
 from random import shuffle
 import datetime
 import calendar
+import math
+import CONFIG as CONFIG
 
 
-CONFIG_RAW_JSON_PATH = "/Users/admin/Documents/gradientmuscle/rezadata/"
-CONFIG_NN_PICKLES_PATH = "/Users/admin/Documents/gradientmuscle/nnpickles/"
-CONFIG_NORMALIZED_NN_PICKLES_PATH = "/Users/admin/Documents/gradientmuscle/normalized_pickles/"
-CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Documents/gradientmuscle/normvals"
-CONFIG_WORKOUT_LOOKBACK = 1
-CONFIG_BATCH_SIZE = 2
-CONFIG_MAX_REPS_PER_SET = 15
-CONFIG_MAX_WEIGHT = 1000
-#assuming they do 25 sets per workout, everyday
-#its 40 days before there are 1000 sets
-#and after 1000 timesteps the LSTM doesnt really remember further
-CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP = 7*6
 
-
-jsonfilenames = os.listdir(CONFIG_RAW_JSON_PATH)
+jsonfilenames = os.listdir(CONFIG.CONFIG_RAW_JSON_PATH)
 
 jsonfilenames.sort()
 
@@ -60,7 +49,7 @@ jsonfilenames.sort()
 jsonobjects = []
 
 for i in range(len(jsonfilenames)):
-    d = open(CONFIG_RAW_JSON_PATH+jsonfilenames[i])
+    d = open(CONFIG.CONFIG_RAW_JSON_PATH+jsonfilenames[i])
     o = json.load(d)
     jsonobjects.append(o)
 
@@ -86,9 +75,9 @@ abc = None
 workout_ranges = []
 for i in range(len(workout_indexes)):
     behind = workout_indexes[:i]
-    if len(behind) > CONFIG_WORKOUT_LOOKBACK:
+    if len(behind) > CONFIG.CONFIG_WORKOUT_LOOKBACK:
         end = workout_indexes[i]
-        start = workout_indexes[i-CONFIG_WORKOUT_LOOKBACK]
+        start = workout_indexes[i-CONFIG.CONFIG_WORKOUT_LOOKBACK]
         workout_ranges.append([start,end])
     #if i-CONFIG_WORKOUT_LOOKBACK >= 0:
     #    workout_ranges.append([i-CONFIG_WORKOUT_LOOKBACK,i])
@@ -196,8 +185,8 @@ choosable_exercises = ["squat","benchpress","deadlift"]
 rl_all_possible_actions = []
 for exercise_name in choosable_exercises:
     exercise_index = exercise_vocabulary.index(exercise_name)
-    for x in range(1,CONFIG_MAX_REPS_PER_SET+1):
-        for y in range(45,CONFIG_MAX_WEIGHT,5):
+    for x in range(1,CONFIG.CONFIG_MAX_REPS_PER_SET+1):
+        for y in range(45,CONFIG.CONFIG_MAX_WEIGHT,5):
             rl_all_possible_actions.append(exercise_name+":reps:"+str(x)+":weight:"+str(y))
 
 rl_all_possible_actions.append("LEAVEGYM:reps:0:weight:0")
@@ -359,8 +348,8 @@ def makeRawPackages():
                     lw_timestamp = calendar.timegm(lw_datetime.timetuple())
 
                     days_since_last_workout = float(cw_timestamp - lw_timestamp)/(60*60*24)
-                    if days_since_last_workout > CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
-                        days_since_last_workout = CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
+                    if days_since_last_workout > CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
+                        days_since_last_workout = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
 
                     packaged_workout.append(days_since_last_workout)
 
@@ -371,10 +360,10 @@ def makeRawPackages():
                     velarr = []
                     if vmpsa != -1:
                         velarr.extend(vmpsa)
-                    while len(velarr) < CONFIG_MAX_REPS_PER_SET:
+                    while len(velarr) < CONFIG.CONFIG_MAX_REPS_PER_SET:
                         velarr.append(0)
 
-                    if len(velarr) > CONFIG_MAX_REPS_PER_SET:
+                    if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
                         assert "too many velocities, bad data?"
 
                     packaged_workout.extend(velarr)
@@ -406,7 +395,7 @@ def makeRawPackages():
                     copyx[10] = copyx[10] # dayssincelastworkout
 
                     #init the reps speeds to 0
-                    for rs in range(CONFIG_MAX_REPS_PER_SET):
+                    for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
                         copyx[11+rs] = 0
 
                     unit_workout_clone[-1] = copyx
@@ -435,7 +424,7 @@ def makeRawPackages():
                         padx[10] = 0  # dayssincelastworkout
 
                         #init the reps speeds to 0
-                        for rs in range(CONFIG_MAX_REPS_PER_SET):
+                        for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
                             padx[11+rs] = 0
                         unit_workout_clone_padded.insert(0, padx)
 
@@ -492,7 +481,7 @@ def makeRawPackages():
 
                     has_speed = False
                     #init the reps speeds to -1
-                    for rs in range(CONFIG_MAX_REPS_PER_SET):
+                    for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
                         if copyy[11+rs] > 0:
                             has_speed = True
 
@@ -534,12 +523,12 @@ def makeRawPackages():
                     savename = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]+"_"+str(ii)
 
                     if has_valid_y:
-                        pickle.dump(wholeTrainUnit, open(CONFIG_NN_PICKLES_PATH +savename , "wb"))
+                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_PICKLES_PATH +savename , "wb"))
 
 
 
 def getRawPickleFilenames():
-    picklefilenames = os.listdir(CONFIG_NN_PICKLES_PATH)
+    picklefilenames = os.listdir(CONFIG.CONFIG_NN_PICKLES_PATH)
     if ".DS_Store" in picklefilenames:
         picklefilenames.remove(".DS_Store")
     return picklefilenames
@@ -552,7 +541,7 @@ def writeNormValues():
     #if ".DS_Store" in picklefilenames:
     #    picklefilenames.remove(".DS_Store")
 
-    unpickled_package = pickle.load(open(CONFIG_NN_PICKLES_PATH + picklefilenames[0], "rb"))
+    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH + picklefilenames[0], "rb"))
 
     dayseriesxmin = [9999.0]*len(unpickled_package["dayseriesx"][0])
     dayseriesxmax = [-9999.0]*len(unpickled_package["dayseriesx"][0])
@@ -568,7 +557,7 @@ def writeNormValues():
 
     for picklefilename in picklefilenames:
 
-        unpickled_package = pickle.load(open(CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
 
         unpickledayseriesx = unpickled_package["dayseriesx"]
         for i in range(len(unpickledayseriesx)):
@@ -616,7 +605,7 @@ def writeNormValues():
     normVals["workoutymin"] = workoutymin
     normVals["workoutymax"] = workoutymax
 
-    pickle.dump(normVals, open(CONFIG_NORMALIZE_VALS_PATH, "wb"))
+    pickle.dump(normVals, open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "wb"))
 
 
 
@@ -628,7 +617,7 @@ def makeNormalizedPickles():
 
     #picklefilenames = os.listdir(CONFIG_NN_PICKLES_PATH)
 
-    normVals = pickle.load(open(CONFIG_NORMALIZE_VALS_PATH, "rb"))
+    normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
 
     dayseriesxmin = normVals["dayseriesxmin"]
     dayseriesxmax = normVals["daysseriesxmax"]
@@ -642,7 +631,7 @@ def makeNormalizedPickles():
 
     for picklefilename in picklefilenames:
 
-        unpickled_package = pickle.load(open(CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
         n_unpickled_package = {}
 
         unpickledayseriesx = unpickled_package["dayseriesx"]
@@ -707,18 +696,18 @@ def makeNormalizedPickles():
             n_unpickledworkouty.append(unpickledworkouty[i])
         n_unpickled_package["workouty"] = n_unpickledworkouty
 
-        pickle.dump(n_unpickled_package, open(CONFIG_NORMALIZED_NN_PICKLES_PATH+picklefilename, "wb"))
+        pickle.dump(n_unpickled_package, open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH+picklefilename, "wb"))
 
 
 
 def getUnitNames():
-    picklefilenames = os.listdir(CONFIG_NORMALIZED_NN_PICKLES_PATH)
+    picklefilenames = os.listdir(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH)
     if ".DS_Store" in picklefilenames:
         picklefilenames.remove(".DS_Store")
     return picklefilenames
 
 def getUnitForName(unit_name):
-    unpickled_package = pickle.load(open(CONFIG_NORMALIZED_NN_PICKLES_PATH + unit_name, "rb"))
+    unpickled_package = pickle.load(open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH + unit_name, "rb"))
     return unpickled_package
 
 
@@ -767,7 +756,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CONFIG_BATCH_SIZE,500))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CONFIG.CONFIG_BATCH_SIZE,500))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -800,12 +789,6 @@ class Lift_NN():
         ##do rl assembling of inputs later when u start coding the rl environment interaction code
 
         self.AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
-        #LEFT
-        #OFF
-        #HERE
-        #MAKE
-        ##ENV
-        #NEXT
 
         self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
                                                name="agent_day_series_input")
@@ -837,7 +820,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.agent_combined_shaped = tf.reshape(self.agent_combined,(CONFIG_BATCH_SIZE,500))
+        self.agent_combined_shaped = tf.reshape(self.agent_combined,(CONFIG.CONFIG_BATCH_SIZE,500))
         self.agent_afshape = tf.shape(self.agent_combined_shaped)
         #tf.set_shape()
 
@@ -872,11 +855,14 @@ sess.run(init_op)
 
 
 
-all_names_copy = all_names[:]
-shuffle(all_names_copy)
 
-while len(all_names_copy)>CONFIG_BATCH_SIZE:
-    batch_unit_names = all_names_copy[:CONFIG_BATCH_SIZE]
+split_index = int(math.floor(float(len(all_names))*0.8))
+
+train_names = all_names[:split_index]
+valid_names = all_names[split_index:]
+
+
+def buildBatchFromNames(batch_unit_names):
 
     day_series_batch = []
     user_x_batch = []
@@ -884,7 +870,7 @@ while len(all_names_copy)>CONFIG_BATCH_SIZE:
     workout_y_batch = []
 
     i = 0
-    while i < CONFIG_BATCH_SIZE:
+    while i < CONFIG.CONFIG_BATCH_SIZE:
         i = i + 1
         a_name = batch_unit_names.pop(0)
         loaded_unit = getUnitForName(a_name)
@@ -898,59 +884,130 @@ while len(all_names_copy)>CONFIG_BATCH_SIZE:
         workout_series_batch.append(a_workout_series)
         workout_y_batch.append(a_workout_y)
 
-        #if you are using batches, they have to have the same shape
-        #day_series_batch.append(a_day_series)
-        #user_x_batch.append(a_user_x)
-        #workout_series_batch.append(a_workout_series)
-        #workout_y_batch.append(a_workout_y)
+        # if you are using batches, they have to have the same shape
+        # day_series_batch.append(a_day_series)
+        # user_x_batch.append(a_user_x)
+        # workout_series_batch.append(a_workout_series)
+        # workout_y_batch.append(a_workout_y)
 
     day_series_batch = np.array(day_series_batch)
     user_x_batch = np.array(user_x_batch)
     workout_series_batch = np.array(workout_series_batch)
     workout_y_batch = np.array(workout_y_batch)
 
-    print workout_y_batch.shape
-    print workout_series_batch.shape
-    print user_x_batch.shape
-    print day_series_batch.shape
+    #print workout_y_batch.shape
+    #print workout_series_batch.shape
+    #print user_x_batch.shape
+    #print day_series_batch.shape
 
-    ABC = None
+    return workout_y_batch,workout_series_batch,user_x_batch,day_series_batch
 
-    results = sess.run([
-                        alw.world_day_series_input,
-                        alw.world_workout_series_input,
-                        alw.world_y,
-                        alw.world_operation,
-                        alw.world_e,
-                        alw.world_workout_y,
-                        alw.world_combined,
-                        alw.world_combined_shaped,
-                        alw.world_b4shape,
-                        alw.world_lastA,
-                        alw.world_lastAA
 
-                        #alw.combined2,
-                        #alw.workout_y,
-                        #alw.afshape,
-                        #alw.user_vector_input
-                         ],
 
-                        feed_dict={
-                                alw.world_day_series_input:day_series_batch,
-                                alw.world_workout_series_input:workout_series_batch,
-                                alw.world_user_vector_input:user_x_batch,
-                                alw.world_workout_y:workout_y_batch
-                                })
+for _ in range(0, CONFIG.CONFIG_NUM_EPOCHS):
 
-    abc = None
-    #print "here"
-    #results = sess.run([alw.operation, alw.e, alw.workout_y, alw.y],feed_dict={alw.day_series_input:[day_series_in],
-    #                                                            alw.workout_series_input:[workout_series_in],
-    #                                                            alw.user_vector_in:[user_vector_in],
-    #                                                            alw.workout_y:[workout_y_in]})
+    train_names_copy = train_names[:]
+    shuffle(train_names_copy)
 
-    trainError = results[4]
-    print "trainExtern: " + str(trainError)
+    valid_names_copy = valid_names[:]
+
+    train_error = None
+    valid_error = None
+
+    while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+        batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+        train_names_copy.pop(0)
+
+        day_series_batch = []
+        user_x_batch = []
+        workout_series_batch = []
+        workout_y_batch = []
+
+        workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_train_names)
+
+        #print workout_y_batch.shape
+        #print workout_series_batch.shape
+        #print user_x_batch.shape
+        #print day_series_batch.shape
+
+        ABC = None
+
+        train_results = sess.run([
+                            alw.world_day_series_input,
+                            alw.world_workout_series_input,
+                            alw.world_y,
+                            alw.world_operation,
+                            alw.world_e,
+                            alw.world_workout_y,
+                            alw.world_combined,
+                            alw.world_combined_shaped,
+                            alw.world_b4shape,
+                            alw.world_lastA,
+                            alw.world_lastAA
+
+                            #alw.combined2,
+                            #alw.workout_y,
+                            #alw.afshape,
+                            #alw.user_vector_input
+                             ],
+
+                            feed_dict={
+                                    alw.world_day_series_input:day_series_batch,
+                                    alw.world_workout_series_input:workout_series_batch,
+                                    alw.world_user_vector_input:user_x_batch,
+                                    alw.world_workout_y:workout_y_batch
+                                    })
+        abc = None
+        train_error = train_results[4]
+        #print "trainExtern: " + str(train_error)
+
+    while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+        batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+        valid_names_copy.pop(0)
+
+        day_series_batch = []
+        user_x_batch = []
+        workout_series_batch = []
+        workout_y_batch = []
+
+        workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
+
+        #print workout_y_batch.shape
+        #print workout_series_batch.shape
+        #print user_x_batch.shape
+        #print day_series_batch.shape
+
+        ABC = None
+
+        valid_results = sess.run([
+                            alw.world_day_series_input,
+                            alw.world_workout_series_input,
+                            alw.world_y,
+                            #alw.world_operation,
+                            alw.world_e,
+                            alw.world_workout_y,
+                            alw.world_combined,
+                            alw.world_combined_shaped,
+                            alw.world_b4shape,
+                            alw.world_lastA,
+                            alw.world_lastAA
+
+                            #alw.combined2,
+                            #alw.workout_y,
+                            #alw.afshape,
+                            #alw.user_vector_input
+                             ],
+
+                            feed_dict={
+                                    alw.world_day_series_input:day_series_batch,
+                                    alw.world_workout_series_input:workout_series_batch,
+                                    alw.world_user_vector_input:user_x_batch,
+                                    alw.world_workout_y:workout_y_batch
+                                    })
+        abc = None
+        valid_error = valid_results[3]
+        #print "trainExtern: " + str(train_error)
+    print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error)
 
 sess.close()
 
