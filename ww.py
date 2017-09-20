@@ -308,7 +308,7 @@ def makeRawPackages():
                     packaged_workout.append(pmn)
                     packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"])
 
-                    # add another variable for days inbetween workouts
+                    # add another variable for days inbetween workouts------------------------------------------------
                     # 1 convert mmddyy to timestamp
                     # 2 do subtraction
                     # 3 do division to get number of days
@@ -353,9 +353,13 @@ def makeRawPackages():
 
                     packaged_workout.append(days_since_last_workout)
 
+                    #------------------------------------------------------------------------------------------------
 
-                    #pad to a fixed 20 reps
-                    #that way you can just let the info flow un messed with
+
+                    #pad reps array to a fixed 20 reps
+                    #that way you can just include a 20 feature array
+                    #then let the flow go unmessed with
+
                     vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
                     velarr = []
                     if vmpsa != -1:
@@ -374,8 +378,14 @@ def makeRawPackages():
 
                     unit_workouts.append(packaged_workout)
 
+
+                    #------------------------------------------------------------------------
+
                     #so basically for each set in the workout_vector array
                     #we make a train unit with x and y
+                    #in this we hollow out the x
+                    #then use the unhollowed out x for the y
+                    #so the model can learn to predict the values we hollowed out
 
                     unit_workout_clone = unit_workouts[:]
 
@@ -400,12 +410,14 @@ def makeRawPackages():
 
                     unit_workout_clone[-1] = copyx
 
-
                     #---------------------------------------------------------------------
-                    #now pad the unit_workout_timeseries to the max range
-                    #we have seen, this makes it so we can train
-                    #batches bc for batches the inputs all have to have
-                    #the same shape for some reason
+
+                    # now pad the unit_workout_timeseries to the max range
+                    # we have seen, so make it the length of the workout with the max number
+                    # of sets that exists in our whole dataset
+                    # this makes it so we can train
+                    # batches bc for batches the inputs all have to have
+                    # the same shape for some reason
 
                     unit_workout_clone_padded = unit_workout_clone[:]
 
@@ -430,6 +442,7 @@ def makeRawPackages():
 
 
                     #---------------------------------------------------------------------
+
                     #now pad the day series to the max range
                     #we have seen, so we can train using batches
                     #bc batches need the same size shapes
@@ -487,8 +500,13 @@ def makeRawPackages():
 
                     has_valid_y = False
 
-                    if has_speed or has_heartrate:
+                    if has_speed and has_heartrate:
                         has_valid_y = True
+
+                        #UPDATE: model gets horrible with either
+                        #need to use both or one or the other
+
+
                         #not sure how I feel about using either
                         #instead of and
                         #but some lifters will not record hr
@@ -820,49 +838,23 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.agent_combined_shaped = tf.reshape(self.agent_combined,(CONFIG.CONFIG_BATCH_SIZE,500))
+        self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
         self.agent_afshape = tf.shape(self.agent_combined_shaped)
         #tf.set_shape()
 
         self.agent_combined2 = tf.concat([self.agent_combined_shaped,self.agent_user_vector_input],1)
         agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
 
-        self.agent_y = agent_dd
+        dd3 = tf.contrib.layers.softmax(agent_dd)
 
+        self.agent_y = dd3
 
         ##--------------------------------------------------------------------------------------------------------------
 
+        self.asaver = tf.train.Saver()
 
 
-
-
-makeRawPackages()
-writeNormValues()
-makeNormalizedPickles()
-
-
-all_names = getUnitNames()
-loaded_unit = getUnitForName(all_names[0])
-some_day_series = loaded_unit["dayseriesx"]
-some_user_x = loaded_unit["userx"]
-some_workout_series = loaded_unit["workoutxseries"]
-some_workout_y = loaded_unit["workouty"]
-abc = None
-alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y)
-init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
-sess = tf.Session()
-sess.run(init_op)
-
-
-
-
-split_index = int(math.floor(float(len(all_names))*0.8))
-
-train_names = all_names[:split_index]
-valid_names = all_names[split_index:]
-
-
-def buildBatchFromNames(batch_unit_names):
+def buildBatchFromNames(batch_unit_names,batch_size):
 
     day_series_batch = []
     user_x_batch = []
@@ -870,7 +862,7 @@ def buildBatchFromNames(batch_unit_names):
     workout_y_batch = []
 
     i = 0
-    while i < CONFIG.CONFIG_BATCH_SIZE:
+    while i < batch_size:
         i = i + 1
         a_name = batch_unit_names.pop(0)
         loaded_unit = getUnitForName(a_name)
@@ -903,126 +895,203 @@ def buildBatchFromNames(batch_unit_names):
     return workout_y_batch,workout_series_batch,user_x_batch,day_series_batch
 
 
+def trainStressAdaptationModel():
 
-for _ in range(0, CONFIG.CONFIG_NUM_EPOCHS):
+    makeRawPackages()
+    writeNormValues()
+    makeNormalizedPickles()
 
-    train_names_copy = train_names[:]
-    shuffle(train_names_copy)
+    all_names = getUnitNames()
+    loaded_unit = getUnitForName(all_names[0])
+    some_day_series = loaded_unit["dayseriesx"]
+    some_user_x = loaded_unit["userx"]
+    some_workout_series = loaded_unit["workoutxseries"]
+    some_workout_y = loaded_unit["workouty"]
+    abc = None
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y)
+    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    sess = tf.Session()
+    sess.run(init_op)
 
-    valid_names_copy = valid_names[:]
+    split_index = int(math.floor(float(len(all_names))*0.8))
 
-    train_error = None
-    valid_error = None
+    shuffle(all_names)
+    train_names = all_names[:split_index]
+    valid_names = all_names[split_index:]
 
-    while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
-        batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
-        train_names_copy.pop(0)
+    for _ in range(0, CONFIG.CONFIG_NUM_EPOCHS):
 
-        day_series_batch = []
-        user_x_batch = []
-        workout_series_batch = []
-        workout_y_batch = []
+        train_names_copy = train_names[:]
+        shuffle(train_names_copy)
 
-        workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_train_names)
+        valid_names_copy = valid_names[:]
 
-        #print workout_y_batch.shape
-        #print workout_series_batch.shape
-        #print user_x_batch.shape
-        #print day_series_batch.shape
+        train_error = None
+        valid_error = None
 
-        ABC = None
+        while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+            batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+            train_names_copy.pop(0)
 
-        train_results = sess.run([
-                            alw.world_day_series_input,
-                            alw.world_workout_series_input,
-                            alw.world_y,
-                            alw.world_operation,
-                            alw.world_e,
-                            alw.world_workout_y,
-                            alw.world_combined,
-                            alw.world_combined_shaped,
-                            alw.world_b4shape,
-                            alw.world_lastA,
-                            alw.world_lastAA
+            day_series_batch = []
+            user_x_batch = []
+            workout_series_batch = []
+            workout_y_batch = []
 
-                            #alw.combined2,
-                            #alw.workout_y,
-                            #alw.afshape,
-                            #alw.user_vector_input
-                             ],
+            workout_y_batch,workout_series_batch,user_x_batch,day_series_batch \
+                = buildBatchFromNames(batch_unit_train_names,CONFIG.CONFIG_BATCH_SIZE)
 
-                            feed_dict={
-                                    alw.world_day_series_input:day_series_batch,
-                                    alw.world_workout_series_input:workout_series_batch,
-                                    alw.world_user_vector_input:user_x_batch,
-                                    alw.world_workout_y:workout_y_batch
-                                    })
-        abc = None
-        train_error = train_results[4]
-        #print "trainExtern: " + str(train_error)
+            #print workout_y_batch.shape
+            #print workout_series_batch.shape
+            #print user_x_batch.shape
+            #print day_series_batch.shape
 
-    while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
-        batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
-        valid_names_copy.pop(0)
+            ABC = None
 
-        day_series_batch = []
-        user_x_batch = []
-        workout_series_batch = []
-        workout_y_batch = []
+            train_results = sess.run([
+                                alw.world_day_series_input,
+                                alw.world_workout_series_input,
+                                alw.world_y,
+                                alw.world_operation,
+                                alw.world_e,
+                                alw.world_workout_y,
+                                alw.world_combined,
+                                alw.world_combined_shaped,
+                                alw.world_b4shape,
+                                alw.world_lastA,
+                                alw.world_lastAA
 
-        workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
+                                #alw.combined2,
+                                #alw.workout_y,
+                                #alw.afshape,
+                                #alw.user_vector_input
+                                 ],
 
-        #print workout_y_batch.shape
-        #print workout_series_batch.shape
-        #print user_x_batch.shape
-        #print day_series_batch.shape
+                                feed_dict={
+                                        alw.world_day_series_input:day_series_batch,
+                                        alw.world_workout_series_input:workout_series_batch,
+                                        alw.world_user_vector_input:user_x_batch,
+                                        alw.world_workout_y:workout_y_batch
+                                        })
+            abc = None
+            train_error = train_results[4]
+            #print "trainExtern: " + str(train_error)
 
-        ABC = None
+        while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+            batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+            valid_names_copy.pop(0)
 
-        valid_results = sess.run([
-                            alw.world_day_series_input,
-                            alw.world_workout_series_input,
-                            alw.world_y,
-                            #alw.world_operation,
-                            alw.world_e,
-                            alw.world_workout_y,
-                            alw.world_combined,
-                            alw.world_combined_shaped,
-                            alw.world_b4shape,
-                            alw.world_lastA,
-                            alw.world_lastAA
+            day_series_batch = []
+            user_x_batch = []
+            workout_series_batch = []
+            workout_y_batch = []
 
-                            #alw.combined2,
-                            #alw.workout_y,
-                            #alw.afshape,
-                            #alw.user_vector_input
-                             ],
+            workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
 
-                            feed_dict={
-                                    alw.world_day_series_input:day_series_batch,
-                                    alw.world_workout_series_input:workout_series_batch,
-                                    alw.world_user_vector_input:user_x_batch,
-                                    alw.world_workout_y:workout_y_batch
-                                    })
-        abc = None
-        valid_error = valid_results[3]
-        #print "trainExtern: " + str(train_error)
-    print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error)
+            #print workout_y_batch.shape
+            #print workout_series_batch.shape
+            #print user_x_batch.shape
+            #print day_series_batch.shape
 
-sess.close()
+            ABC = None
 
-#for a_unit_name in all_names:
-#    loaded_unit = getUnitForName(a_unit_name)
-#    abc = None
+            valid_results = sess.run([
+                                alw.world_day_series_input,
+                                alw.world_workout_series_input,
+                                alw.world_y,
+                                #alw.world_operation,
+                                alw.world_e,
+                                alw.world_workout_y,
+                                alw.world_combined,
+                                alw.world_combined_shaped,
+                                alw.world_b4shape,
+                                alw.world_lastA,
+                                alw.world_lastAA
+
+                                #alw.combined2,
+                                #alw.workout_y,
+                                #alw.afshape,
+                                #alw.user_vector_input
+                                 ],
+
+                                feed_dict={
+                                        alw.world_day_series_input:day_series_batch,
+                                        alw.world_workout_series_input:workout_series_batch,
+                                        alw.world_user_vector_input:user_x_batch,
+                                        alw.world_workout_y:workout_y_batch
+                                        })
+            abc = None
+            valid_error = valid_results[3]
+            #print "trainExtern: " + str(train_error)
+        print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error)
+
+        if train_error>valid_error:
+            print "model saved"
+            alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+
+    sess.close()
+
+
+def trainRLAgent():
+
+    all_names = getUnitNames()
+    loaded_unit = getUnitForName(all_names[0])
+    some_day_series = loaded_unit["dayseriesx"]
+    some_user_x = loaded_unit["userx"]
+    some_workout_series = loaded_unit["workoutxseries"]
+    some_workout_y = loaded_unit["workouty"]
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y)
+
+    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    sess = tf.Session()
+    sess.run(init_op)
+
+
+    #so lets use each of these real datatpoints as a starting point
+    #and let the model progress from there for a fixed number of steps?
+    shuffle(all_names)
+
+    starting_point_name = []
+    starting_point_name.append(all_names[0])
+
+    day_series_batch = []
+    user_x_batch = []
+    workout_series_batch = []
+    workout_y_batch = []
+
+    workout_y_batch, workout_series_batch, user_x_batch, day_series_batch = buildBatchFromNames(starting_point_name,1)
+
+    print workout_y_batch.shape
+    print workout_series_batch.shape
+    print user_x_batch.shape
+    print day_series_batch.shape
+
+    ABC = None
+
+    results = sess.run([
+        alw.agent_day_series_input,
+        alw.agent_workout_series_input,
+        alw.agent_y,
+
+    ],
+
+        feed_dict={
+            alw.agent_day_series_input: day_series_batch,
+            alw.agent_workout_series_input: workout_series_batch,
+            alw.agent_user_vector_input: user_x_batch
+        })
+    abc = None
+    agent_softmax_choices = results[2]
 
 
 
 
 
-#getTrainingUnitNames
-#unpickleUnitName
-#make NN
-#train NN
+
+trainRLAgent()
+#trainStressAdaptationModel()
+
+
 
 
 
