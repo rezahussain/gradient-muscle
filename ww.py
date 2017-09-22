@@ -187,13 +187,40 @@ for exercise_name in choosable_exercises:
     exercise_index = exercise_vocabulary.index(exercise_name)
     for x in range(1,CONFIG.CONFIG_MAX_REPS_PER_SET+1):
         for y in range(45,CONFIG.CONFIG_MAX_WEIGHT,5):
-            rl_all_possible_actions.append(exercise_name+":reps:"+str(x)+":weight:"+str(y))
+            rl_all_possible_actions.append("exercise="+exercise_name+":reps="+str(x)+":weight="+str(y))
 
-rl_all_possible_actions.append("LEAVEGYM:reps:0:weight:0")
+rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:weight=0")
 
 ABC = None
+
 #---------------------------------------------------------->
 
+
+def calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd):
+
+    cwyyyy = int(current_workout_yyyymmdd[0:4])
+    cwmm = int(current_workout_yyyymmdd[4:6])
+    cwdd = int(current_workout_yyyymmdd[6:8])
+
+    lwyyyy = int(last_workout_yyyymmdd[0:4])
+    lwmm = int(last_workout_yyyymmdd[4:6])
+    lwdd = int(last_workout_yyyymmdd[6:8])
+
+    cw_datetime = datetime.datetime(cwyyyy, cwmm, cwdd)
+    lw_datetime = datetime.datetime(lwyyyy, lwmm, lwdd)
+
+    cw_timestamp = calendar.timegm(cw_datetime.timetuple())
+    lw_timestamp = calendar.timegm(lw_datetime.timetuple())
+
+    days_since_last_workout = float(cw_timestamp - lw_timestamp) / (60 * 60 * 24)
+    if days_since_last_workout > CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
+        days_since_last_workout = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
+
+    return days_since_last_workout
+
+
+
+#---------------------------------------------------------->
 
 
 
@@ -211,6 +238,8 @@ def makeRawPackages():
         unit_y = []
 
         per_set_workout = []
+
+        last_day_vector_workout_day_index = None
 
         for xx in range(r[0],r[1]+1):
 
@@ -240,7 +269,7 @@ def makeRawPackages():
 
             packaged_day.append(jsonobjects[xx]["day_vector"]["sleeptime_efficiency_percent"])
 
-            sarap =  time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
+            sarap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
             packaged_day.append(sarap)
 
             sasap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
@@ -268,6 +297,28 @@ def makeRawPackages():
             packaged_day.append(sdrhrs)
 
 
+            #days_since_last_workout = None
+            if last_day_vector_workout_day_index is not None:
+                current_workout_yyyymmdd = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]
+                last_workout_yyyymmdd = jsonobjects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
+                days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
+            else:
+                days_since_last_workout = 0
+
+            packaged_day.append(days_since_last_workout)
+
+            abc = len(packaged_day)
+
+
+            if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
+                last_day_vector_workout_day_index = xx
+
+
+
+            #------------------------------------------------------------
+
+            # if you modify the setup above make sure it is also modded
+            # in the pad unit_days below
             unit_days.append(packaged_day)
 
 
@@ -333,23 +384,7 @@ def makeRawPackages():
                     current_workout_yyyymmdd = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]
                     last_workout_yyyymmdd = jsonobjects[last_workout_day_index]["day_vector"]["date_yyyymmdd"]
 
-                    cwyyyy = int(current_workout_yyyymmdd[0:4])
-                    cwmm = int(current_workout_yyyymmdd[4:6])
-                    cwdd = int(current_workout_yyyymmdd[6:8])
-
-                    lwyyyy = int(last_workout_yyyymmdd[0:4])
-                    lwmm = int(last_workout_yyyymmdd[4:6])
-                    lwdd = int(last_workout_yyyymmdd[6:8])
-
-                    cw_datetime = datetime.datetime(cwyyyy, cwmm, cwdd)
-                    lw_datetime = datetime.datetime(lwyyyy, lwmm, lwdd)
-
-                    cw_timestamp = calendar.timegm(cw_datetime.timetuple())
-                    lw_timestamp = calendar.timegm(lw_datetime.timetuple())
-
-                    days_since_last_workout = float(cw_timestamp - lw_timestamp)/(60*60*24)
-                    if days_since_last_workout > CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
-                        days_since_last_workout = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
+                    days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd)
 
                     packaged_workout.append(days_since_last_workout)
 
@@ -473,6 +508,7 @@ def makeRawPackages():
                     packaged_day_padded.append(-1)  # sleeptime_awake_hrs
                     packaged_day_padded.append(-1)  # sleeptime_light_sleep_hrs
                     packaged_day_padded.append(-1)  # sleeptime_deep_rem_hrs
+                    packaged_day_padded.append(-1)  # days_since_last_workout
 
                     while len(unit_days_padded) < max_day_range_array_len:
                         unit_days_padded.insert(0, packaged_day_padded)
@@ -627,93 +663,118 @@ def writeNormValues():
 
 
 
+def normalize_unit(norm_vals, packaged_unit):
+
+    dayseriesxmin = norm_vals["dayseriesxmin"]
+    dayseriesxmax = norm_vals["daysseriesxmax"]
+    userxmin = norm_vals["userxmin"]
+    userxmax = norm_vals["userxmax"]
+    workoutxseriesmin = norm_vals["workoutxseriesmin"]
+    workoutxseriesmax = norm_vals["workoutxseriesmax"]
+    workoutymin = norm_vals["workoutymin"]
+    workoutymax = norm_vals["workoutymax"]
+
+
+    n_packaged_unit = {}
+
+    unpickledayseriesx = packaged_unit["dayseriesx"]
+    n_unpickleddayseriesx = []
+    for i in range(len(unpickledayseriesx)):
+        daystep = unpickledayseriesx[i]
+        for ii in range(len(daystep)):
+            if daystep[ii] > dayseriesxmax[ii]:
+                daystep[ii] = dayseriesxmax[ii]
+            if daystep[ii] < dayseriesxmin[ii]:
+                daystep[ii] = dayseriesxmin[ii]
+            if (dayseriesxmax[ii] - dayseriesxmin[ii]) > 0:
+                daystep[ii] = (daystep[ii] - dayseriesxmin[ii]) / (dayseriesxmax[ii] - dayseriesxmin[ii])
+            else:
+                daystep[ii] = 0
+        n_unpickleddayseriesx.append(daystep)
+    n_packaged_unit["dayseriesx"] = n_unpickleddayseriesx
+
+    unpickledworkoutxseries = packaged_unit["workoutxseries"]
+    n_unpickledworkoutxseries = []
+    for i in range(len(unpickledworkoutxseries)):
+        workoutstep = unpickledworkoutxseries[i]
+        for ii in range(len(workoutstep)):
+            if workoutstep[ii] > workoutxseriesmax[ii]:
+                workoutstep[ii] = workoutxseriesmax[ii]
+            if workoutstep[ii] < workoutxseriesmin[ii]:
+                workoutstep[ii] = workoutxseriesmin[ii]
+            if (workoutxseriesmax[ii] - workoutxseriesmin[ii]) > 0:
+                workoutstep[ii] = (workoutstep[ii] - workoutxseriesmin[ii]) / (
+                workoutxseriesmax[ii] - workoutxseriesmin[ii])
+            else:
+                workoutstep[ii] = 0
+        n_unpickledworkoutxseries.append(workoutstep)
+    n_packaged_unit["workoutxseries"] = n_unpickledworkoutxseries
+
+    unpickleduserx = packaged_unit["userx"]
+    n_unpickleduserx = []
+    for i in range(len(unpickleduserx)):
+        if unpickleduserx[i] > userxmax[i]:
+            unpickleduserx[i] = userxmax[i]
+        if unpickleduserx[i] < userxmin[i]:
+            unpickleduserx[i] = userxmin[i]
+        if (userxmax[i] - userxmin[i]) > 0:
+            unpickleduserx[i] = (unpickleduserx[i] - userxmin[i]) / (userxmax[i] - userxmin[i])
+        else:
+            unpickleduserx[i] = 0
+        n_unpickleduserx.append(unpickleduserx[i])
+    n_packaged_unit["userx"] = n_unpickleduserx
+
+    unpickledworkouty = packaged_unit["workouty"]
+    n_unpickledworkouty = []
+    for i in range(len(unpickledworkouty)):
+        if unpickledworkouty[i] > workoutymax[i]:
+            unpickledworkouty[i] = workoutymax[i]
+        if unpickledworkouty[i] < workoutymin[i]:
+            unpickledworkouty[i] = workoutymin[i]
+        if (workoutymax[i] - workoutymin[i]) > 0:
+            unpickledworkouty[i] = (unpickledworkouty[i] - workoutymin[i]) / (workoutymax[i] - workoutymin[i])
+        else:
+            unpickledworkouty[i] = 0
+        n_unpickledworkouty.append(unpickledworkouty[i])
+    n_packaged_unit["workouty"] = n_unpickledworkouty
+
+    return n_packaged_unit
+
+
+#make a full denormalizer later
+def denormalize_workout_series_individual_timestep(n_workout_timestep):
+
+    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+
+    dayseriesxmin = norm_vals["dayseriesxmin"]
+    dayseriesxmax = norm_vals["daysseriesxmax"]
+    userxmin = norm_vals["userxmin"]
+    userxmax = norm_vals["userxmax"]
+    workoutxseriesmin = norm_vals["workoutxseriesmin"]
+    workoutxseriesmax = norm_vals["workoutxseriesmax"]
+    workoutymin = norm_vals["workoutymin"]
+    workoutymax = norm_vals["workoutymax"]
+
+    workout_step = []
+    for ii in range(len(n_workout_timestep)):
+        unnormal =(n_workout_timestep*(workoutxseriesmax[ii] - workoutxseriesmin[ii])) + workoutxseriesmin[ii]
+        workout_step.append(unnormal)
+
+    return workout_step
+
+
+
+
+
+
 
 #now normalize the raw files
 def makeNormalizedPickles():
-
     picklefilenames = getRawPickleFilenames()
-
-    #picklefilenames = os.listdir(CONFIG_NN_PICKLES_PATH)
-
     normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
-
-    dayseriesxmin = normVals["dayseriesxmin"]
-    dayseriesxmax = normVals["daysseriesxmax"]
-    userxmin = normVals["userxmin"]
-    userxmax = normVals["userxmax"]
-    workoutxseriesmin = normVals["workoutxseriesmin"]
-    workoutxseriesmax = normVals["workoutxseriesmax"]
-    workoutymin = normVals["workoutymin"]
-    workoutymax = normVals["workoutymax"]
-
-
     for picklefilename in picklefilenames:
-
         unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
-        n_unpickled_package = {}
-
-        unpickledayseriesx = unpickled_package["dayseriesx"]
-        n_unpickleddayseriesx = []
-        for i in range(len(unpickledayseriesx)):
-            daystep = unpickledayseriesx[i]
-            for ii in range(len(daystep)):
-                if daystep[ii] > dayseriesxmax[ii]:
-                    daystep[ii] = dayseriesxmax[ii]
-                if daystep[ii] < dayseriesxmin[ii]:
-                    daystep[ii] = dayseriesxmin[ii]
-                if (dayseriesxmax[ii]-dayseriesxmin[ii]) > 0:
-                    daystep[ii] = (daystep[ii]-dayseriesxmin[ii])/(dayseriesxmax[ii]-dayseriesxmin[ii])
-                else:
-                    daystep[ii] = 0
-            n_unpickleddayseriesx.append(daystep)
-        n_unpickled_package["dayseriesx"] = n_unpickleddayseriesx
-
-
-        unpickledworkoutxseries = unpickled_package["workoutxseries"]
-        n_unpickledworkoutxseries = []
-        for i in range(len(unpickledworkoutxseries)):
-            workoutstep = unpickledworkoutxseries[i]
-            for ii in range(len(workoutstep)):
-                if workoutstep[ii] > workoutxseriesmax[ii]:
-                    workoutstep[ii] = workoutxseriesmax[ii]
-                if workoutstep[ii] < workoutxseriesmin[ii]:
-                    workoutstep[ii] = workoutxseriesmin[ii]
-                if (workoutxseriesmax[ii]-workoutxseriesmin[ii])>0:
-                    workoutstep[ii] = (workoutstep[ii]-workoutxseriesmin[ii])/(workoutxseriesmax[ii]-workoutxseriesmin[ii])
-                else:
-                    workoutstep[ii] = 0
-            n_unpickledworkoutxseries.append(workoutstep)
-        n_unpickled_package["workoutxseries"] = n_unpickledworkoutxseries
-
-        unpickleduserx = unpickled_package["userx"]
-        n_unpickleduserx = []
-        for i in range(len(unpickleduserx)):
-            if unpickleduserx[i] > userxmax[i]:
-                unpickleduserx[i] = userxmax[i]
-            if unpickleduserx[i] < userxmin[i]:
-                unpickleduserx[i] = userxmin[i]
-            if (userxmax[i]-userxmin[i])>0:
-                unpickleduserx[i] = (unpickleduserx[i]-userxmin[i])/(userxmax[i]-userxmin[i])
-            else:
-                unpickleduserx[i] = 0
-            n_unpickleduserx.append(unpickleduserx[i])
-        n_unpickled_package["userx"] = n_unpickleduserx
-
-
-        unpickledworkouty = unpickled_package["workouty"]
-        n_unpickledworkouty = []
-        for i in range(len(unpickledworkouty)):
-            if unpickledworkouty[i] > workoutymax[i]:
-                unpickledworkouty[i] = workoutymax[i]
-            if unpickledworkouty[i] < workoutymin[i]:
-                unpickledworkouty[i] = workoutymin[i]
-            if (workoutymax[i]-workoutymin[i])>0:
-                unpickledworkouty[i] = (unpickledworkouty[i]-workoutymin[i])/(workoutymax[i]-workoutymin[i])
-            else:
-                unpickledworkouty[i] = 0
-            n_unpickledworkouty.append(unpickledworkouty[i])
-        n_unpickled_package["workouty"] = n_unpickledworkouty
-
+        n_unpickled_package =  normalize_unit(normVals, unpickled_package)
         pickle.dump(n_unpickled_package, open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH+picklefilename, "wb"))
 
 
@@ -933,18 +994,19 @@ def trainStressAdaptationModel():
             batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
             train_names_copy.pop(0)
 
-            day_series_batch = []
-            user_x_batch = []
-            workout_series_batch = []
-            workout_y_batch = []
+            #day_series_batch = []
+            #user_x_batch = []
+            #workout_series_batch = []
+            #workout_y_batch = []
 
-            workout_y_batch,workout_series_batch,user_x_batch,day_series_batch \
+            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch \
                 = buildBatchFromNames(batch_unit_train_names,CONFIG.CONFIG_BATCH_SIZE)
 
-            #print workout_y_batch.shape
-            #print workout_series_batch.shape
-            #print user_x_batch.shape
-            #print day_series_batch.shape
+            print "before"
+            print wo_y_batch.shape
+            print wo_series_batch.shape
+            print user_x_batch.shape
+            print day_series_batch.shape
 
             ABC = None
 
@@ -969,14 +1031,15 @@ def trainStressAdaptationModel():
 
                                 feed_dict={
                                         alw.world_day_series_input:day_series_batch,
-                                        alw.world_workout_series_input:workout_series_batch,
+                                        alw.world_workout_series_input:wo_series_batch,
                                         alw.world_user_vector_input:user_x_batch,
-                                        alw.world_workout_y:workout_y_batch
+                                        alw.world_workout_y:wo_y_batch
                                         })
             abc = None
             train_error = train_results[4]
-            #print "trainExtern: " + str(train_error)
+            print "trainExtern: " + str(train_error)
 
+        '''
         while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
             batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
             valid_names_copy.pop(0)
@@ -986,7 +1049,7 @@ def trainStressAdaptationModel():
             workout_series_batch = []
             workout_y_batch = []
 
-            workout_y_batch,workout_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
+            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
 
             #print workout_y_batch.shape
             #print workout_series_batch.shape
@@ -1016,9 +1079,9 @@ def trainStressAdaptationModel():
 
                                 feed_dict={
                                         alw.world_day_series_input:day_series_batch,
-                                        alw.world_workout_series_input:workout_series_batch,
+                                        alw.world_workout_series_input:wo_series_batch,
                                         alw.world_user_vector_input:user_x_batch,
-                                        alw.world_workout_y:workout_y_batch
+                                        alw.world_workout_y:wo_y_batch
                                         })
             abc = None
             valid_error = valid_results[3]
@@ -1028,6 +1091,8 @@ def trainStressAdaptationModel():
         if train_error>valid_error:
             print "model saved"
             alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+        '''
+
 
     sess.close()
 
@@ -1080,16 +1145,156 @@ def trainRLAgent():
             alw.agent_workout_series_input: workout_series_batch,
             alw.agent_user_vector_input: user_x_batch
         })
+
+    agent_softmax_choices = results[2][0]
+
+
+    oai = np.argmax(agent_softmax_choices)
     abc = None
-    agent_softmax_choices = results[2]
+    print oai
+
+    #now just use the index of the highest softmax value to lookup the action
+    #rl_all_possible_actions
+    human_readable_action = rl_all_possible_actions[oai]
+    print human_readable_action
+
+    #now pass the chosen action + state to the env
+    state = {}
+    state['workout_series'] = workout_series_batch[0]
+    state['user'] = user_x_batch[0]
+    state['day_series'] = day_series_batch[0]
+
+    action = human_readable_action
+
+    agent_world_take_step(state,action,alw)
 
 
 
 
 
 
-trainRLAgent()
-#trainStressAdaptationModel()
+
+def agent_world_take_step(state,action,ai_graph):
+
+    # run through the lift world
+    # make a new state
+    # check for reward
+
+    # need to parse action and insert it into the liftworld input
+    # get the output
+
+    a_workout_series = state['workout_series']
+    a_user_x = state['user']
+    a_day_series = state['day_series']
+
+    day_series_batch = [a_workout_series]
+    user_x_batch = [a_user_x]
+    workout_series_batch = [a_workout_series]
+
+    day_series_batch = np.array(day_series_batch)
+    user_x_batch = np.array(user_x_batch)
+    workout_series_batch = np.array(workout_series_batch)
+
+    #----------------------------------------------------------
+
+    #make a workout vector unit from chosen action
+
+    action_exercise_name_human = (action.split(":")[0]).split("=")[1]
+    action_reps_human = (action.split(":")[1]).split("=")[1]
+    action_weight_human = (action.split(":")[2]).split("=")[1]
+
+    # we will let nn calc rest intervals from
+    # times from the start of workout
+
+    rest_interval_human = None
+    if len(a_workout_series)>0:
+        ptap0 = time_vocabulary.index(a_workout_series[0]["postset_time_ampm"])
+        ptap1 = time_vocabulary.index(a_workout_series[len(a_workout_series)-1]["postset_time_ampm"])
+        rest_interval_human = ptap1-ptap0
+    else:
+        rest_interval_human = 0
+
+
+    new_workout_vector_timestep = [None*(11)]
+
+    new_workout_vector_timestep[0] = action_exercise_name_human # exercise_name
+    new_workout_vector_timestep[1] = action_reps_human          # reps
+    new_workout_vector_timestep[2] = action_weight_human        # weight_lbs
+    new_workout_vector_timestep[3] = rest_interval_human        # rest_interval
+
+    new_workout_vector_timestep[4] = -1  # intraset_heartrate
+    new_workout_vector_timestep[5] = -1  # postset_heartrate
+    new_workout_vector_timestep[6] = -1  # went to failure
+    new_workout_vector_timestep[7] = -1  # did_pull_muscle
+    new_workout_vector_timestep[8] = -1  # pulled_muscle_vocab_index
+    new_workout_vector_timestep[9] = -1  # used_lifting_gear
+
+    #take the value from the last day vector timestep
+    #then in environment steps when you advance the day you need to make sure
+    #that you make it correctly
+    days_since_last_workout_human = None
+
+    if len(a_day_series) > 0:
+        days_since_last_workout_machine = a_day_series[-1][23]#its at the dayseries timestep position 23
+        #so we denormalize a partial workout timestep
+        #so we can get the human value for this normed value
+        temp_timestep = denormalize_workout_series_individual_timestep(a_day_series[-1])
+        days_since_last_workout_human = temp_timestep[23]
+        #denormalize so it matches with everything else in human readable at this stage
+    else:
+        days_since_last_workout_human = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
+
+    new_workout_vector_timestep[10]  #dayssincelastworkout
+
+    # init the reps speeds to 0
+    for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+        new_workout_vector_timestep.append(0)
+
+
+    #----------------------------------------------------------
+
+    '''
+    ABC = None
+
+    valid_results = sess.run([
+        alw.world_day_series_input,
+        alw.world_workout_series_input,
+        alw.world_y,
+        # alw.world_operation,
+        alw.world_e,
+        alw.world_workout_y,
+        alw.world_combined,
+        alw.world_combined_shaped,
+        alw.world_b4shape,
+        alw.world_lastA,
+        alw.world_lastAA
+
+        # alw.combined2,
+        # alw.workout_y,
+        # alw.afshape,
+        # alw.user_vector_input
+    ],
+
+        feed_dict={
+            alw.world_day_series_input: day_series_batch,
+            alw.world_workout_series_input: workout_series_batch,
+            alw.world_user_vector_input: user_x_batch,
+            alw.world_workout_y: workout_y_batch
+        })
+    abc = None
+    valid_error = valid_results[3]
+    # print "trainExtern: " + str(train_error)
+    '''
+
+
+
+    print state,action
+
+
+
+
+#trainRLAgent()
+trainStressAdaptationModel()
 
 
 
