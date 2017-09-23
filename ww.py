@@ -741,7 +741,7 @@ def normalize_unit(norm_vals, packaged_unit):
     return n_packaged_unit
 
 
-#make a full denormalizer later
+
 def denormalize_workout_series_individual_timestep(n_workout_timestep):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -757,11 +757,32 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep):
 
     workout_step = []
     for ii in range(len(n_workout_timestep)):
-        unnormal =(n_workout_timestep*(workoutxseriesmax[ii] - workoutxseriesmin[ii])) + workoutxseriesmin[ii]
+        unnormal =(n_workout_timestep[ii]*(workoutxseriesmax[ii] - workoutxseriesmin[ii])) + workoutxseriesmin[ii]
         workout_step.append(unnormal)
 
     return workout_step
 
+
+def normalize_workout_series_individual_timestep(human_workout_timestep):
+
+    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+
+    dayseriesxmin = norm_vals["dayseriesxmin"]
+    dayseriesxmax = norm_vals["daysseriesxmax"]
+    userxmin = norm_vals["userxmin"]
+    userxmax = norm_vals["userxmax"]
+    workoutxseriesmin = norm_vals["workoutxseriesmin"]
+    workoutxseriesmax = norm_vals["workoutxseriesmax"]
+    workoutymin = norm_vals["workoutymin"]
+    workoutymax = norm_vals["workoutymax"]
+
+    machine_workout_timestep = human_workout_timestep[:]
+
+    for ii in range(len(human_workout_timestep)):
+        normalized = (human_workout_timestep[ii] - workoutxseriesmin[ii])/(workoutxseriesmax[ii]-workoutxseriesmin[ii])
+        machine_workout_timestep[ii] = normalized
+
+    return machine_workout_timestep
 
 
 
@@ -1217,7 +1238,8 @@ def agent_world_take_step(state,action,ai_graph):
 
     new_workout_vector_timestep = [None*(11)]
 
-    new_workout_vector_timestep[0] = action_exercise_name_human # exercise_name
+    en = exercise_vocabulary.index(action_exercise_name_human)
+    new_workout_vector_timestep[0] = en                         # exercise vocab index
     new_workout_vector_timestep[1] = action_reps_human          # reps
     new_workout_vector_timestep[2] = action_weight_human        # weight_lbs
     new_workout_vector_timestep[3] = rest_interval_human        # rest_interval
@@ -1249,6 +1271,12 @@ def agent_world_take_step(state,action,ai_graph):
     # init the reps speeds to 0
     for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
         new_workout_vector_timestep.append(0)
+
+
+    machine_workout_vector_timestep = normalize_workout_series_individual_timestep(new_workout_vector_timestep)
+    #so now normalize the new workout step and add it to the state
+
+
 
 
     #----------------------------------------------------------
