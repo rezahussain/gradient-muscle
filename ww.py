@@ -28,6 +28,7 @@ SOFTWARE.
 #reza@dormantlabs.com
 
 
+import copy
 import os
 import json
 import numpy as np
@@ -246,36 +247,36 @@ def makeRawPackages():
             debug_name = jsonfilenames[xx]
             # build day array
             # print xx
-            packaged_day = []
-            packaged_day.append(jsonobjects[xx]["day_vector"]["heart_rate_variability_rmssd"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["post_day_wearable_calories_burned"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["post_day_calories_in"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["post_day_protein_g"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["post_day_carbs_g"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["post_day_fat_g"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_weight_lbs"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_body_fat_percent"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_muscle_mass_percent"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_body_water_percent"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_heart_rate_bpm"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_bone_mass_percent"])
-            packaged_day.append(jsonobjects[xx]["day_vector"]["withings_pulse_wave_velocity_m_per_s"])
+            packaged_day = {}
+            packaged_day["heart_rate_variability_rmssd"] = jsonobjects[xx]["day_vector"]["heart_rate_variability_rmssd"]
+            packaged_day["post_day_wearable_calories_burned"] = jsonobjects[xx]["day_vector"]["post_day_wearable_calories_burned"]
+            packaged_day["post_day_calories_in"] = jsonobjects[xx]["day_vector"]["post_day_calories_in"]
+            packaged_day["post_day_protein_g"] = jsonobjects[xx]["day_vector"]["post_day_protein_g"]
+            packaged_day["post_day_carbs_g"] = jsonobjects[xx]["day_vector"]["post_day_carbs_g"]
+            packaged_day["post_day_fat_g"] = jsonobjects[xx]["day_vector"]["post_day_fat_g"]
+            packaged_day["withings_weight_lbs"] = jsonobjects[xx]["day_vector"]["withings_weight_lbs"]
+            packaged_day["withings_body_fat_percent"] = jsonobjects[xx]["day_vector"]["withings_body_fat_percent"]
+            packaged_day["withings_muscle_mass_percent"] = jsonobjects[xx]["day_vector"]["withings_muscle_mass_percent"]
+            packaged_day["withings_body_water_percent"] = jsonobjects[xx]["day_vector"]["withings_body_water_percent"]
+            packaged_day["withings_heart_rate_bpm"] = jsonobjects[xx]["day_vector"]["withings_heart_rate_bpm"]
+            packaged_day["withings_bone_mass_percent"] = jsonobjects[xx]["day_vector"]["withings_bone_mass_percent"]
+            packaged_day["withings_pulse_wave_velocity_m_per_s"] = jsonobjects[xx]["day_vector"]["withings_pulse_wave_velocity_m_per_s"]
 
             sbtap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
-            packaged_day.append(sbtap)
+            packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
 
             srtap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_rise_time_ampm"])
-            packaged_day.append(srtap)
+            packaged_day["sleeptime_rise_time_ampm_index"] = srtap
 
-            packaged_day.append(jsonobjects[xx]["day_vector"]["sleeptime_efficiency_percent"])
+            packaged_day["sleeptime_efficiency_percent"] = jsonobjects[xx]["day_vector"]["sleeptime_efficiency_percent"]
 
             sarap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
-            packaged_day.append(sarap)
+            packaged_day["sleeptime_alarm_ring_ampm_index"] = sarap
 
             sasap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
-            packaged_day.append(sasap)
+            packaged_day["sleeptime_alarm_set_ampm_index"] = sasap
 
-            packaged_day.append(jsonobjects[xx]["day_vector"]["sleeptime_snoozed"])
+            packaged_day["sleeptime_snoozed"] = jsonobjects[xx]["day_vector"]["sleeptime_snoozed"]
 
             def getNumericalHour(hour_string):
                 result = None
@@ -288,31 +289,25 @@ def makeRawPackages():
                 return result
 
             sahrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_awake_hrs"])
-            packaged_day.append(sahrs)
+            packaged_day["sleeptime_awake_hrs"] = sahrs
 
             slshrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_light_sleep_hrs"])
-            packaged_day.append(slshrs)
+            packaged_day["sleeptime_light_sleep_hrs"] = slshrs
 
             sdrhrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_deep_rem_hrs"])
-            packaged_day.append(sdrhrs)
+            packaged_day["sleeptime_deep_rem_hrs"] = sdrhrs
 
-
-            #days_since_last_workout = None
+            days_since_last_workout = None
             if last_day_vector_workout_day_index is not None:
                 current_workout_yyyymmdd = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]
                 last_workout_yyyymmdd = jsonobjects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
                 days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
             else:
                 days_since_last_workout = 0
-
-            packaged_day.append(days_since_last_workout)
-
+            packaged_day["days_since_last_workout"] = days_since_last_workout
             abc = len(packaged_day)
-
-
             if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
                 last_day_vector_workout_day_index = xx
-
 
 
             #------------------------------------------------------------
@@ -333,31 +328,38 @@ def makeRawPackages():
 
                 for ii in range(len(jsonobjects[xx]["workout_vector_arr"])):
 
-                    packaged_workout = []
+                    packaged_workout = {}
 
-                    #aset = jsonobjects[xx]["workout_vector_arr"][ii]
-
-
+                    # use a hot vector for which exercise they r doing
+                    for iii in range(len(exercise_vocabulary)):
+                        packaged_workout["category_exercise_name_"+str(iii)] = 0
                     ex_name = jsonobjects[xx]["workout_vector_arr"][ii]["exercise_name"]
                     en = exercise_vocabulary.index(ex_name)
-                    packaged_workout.append(en)
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["reps"])
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"])
+                    packaged_workout["category_exercise_name_" + str(en)] = 1
+
+                    packaged_workout["reps"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps"]
+                    packaged_workout["weight_lbs"] = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
 
                     # we will let nn calc rest intervals from
                     # times from the start of workout
                     ptap0 = time_vocabulary.index(jsonobjects[xx]["workout_vector_arr"][0]["postset_time_ampm"])
                     ptap1 = time_vocabulary.index(jsonobjects[xx]["workout_vector_arr"][ii]["postset_time_ampm"])
-                    packaged_workout.append(ptap1-ptap0)
+                    packaged_workout["rest_interval"] = ptap1-ptap0
 
+                    packaged_workout["intraset_heartrate"] = jsonobjects[xx]["workout_vector_arr"][ii]["intraset_heartrate"]
+                    packaged_workout["postset_heartrate"] = jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
+                    packaged_workout["went_to_failure"] = jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"]
 
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["intraset_heartrate"])
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"])
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"])
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"])
-                    pmn = pulled_muscle_vocabulary.index(jsonobjects[xx]["workout_vector_arr"][ii]["pulled_muscle_name"])
-                    packaged_workout.append(pmn)
-                    packaged_workout.append(jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"])
+                    packaged_workout["did_pull_muscle"] = jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
+
+                    for iii in range(len(pulled_muscle_vocabulary)):
+                        packaged_workout["category_pulled_muscle_"+str(iii)] = 0
+                    pmni = pulled_muscle_vocabulary.index(
+                        jsonobjects[xx]["workout_vector_arr"][ii]["pulled_muscle_name"])
+                    packaged_workout["category_pulled_muscle_"+str(pmni)]
+
+                    packaged_workout["used_lifting_gear"] = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
+
 
                     # add another variable for days inbetween workouts------------------------------------------------
                     # 1 convert mmddyy to timestamp
@@ -386,7 +388,7 @@ def makeRawPackages():
 
                     days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd)
 
-                    packaged_workout.append(days_since_last_workout)
+                    packaged_workout["days_since_last_workout"] = days_since_last_workout
 
                     #------------------------------------------------------------------------------------------------
 
@@ -405,11 +407,12 @@ def makeRawPackages():
                     if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
                         assert "too many velocities, bad data?"
 
-                    packaged_workout.extend(velarr)
                     for c in velarr:
                         if c < 0.0:
                             assert "there exists a negative velocity, bad data?"
 
+                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                        packaged_workout["velocities_arr_"+str(iiii)] = velarr[iiii]
 
                     unit_workouts.append(packaged_workout)
 
@@ -424,26 +427,33 @@ def makeRawPackages():
 
                     unit_workout_clone = unit_workouts[:]
 
-                    copyx = unit_workout_clone[-1][:]
-                    copyy = copyx[:]
+                    original = unit_workout_clone[-1]
+                    copyx = copy.deepcopy(original)
+                    #copyx = unit_workout_clone[-1][:]
+                    copyy = copy.deepcopy(copyx)
 
-                    copyx[0] = copyx[0]  # exercise_name
-                    copyx[1] = copyx[1]  # reps
-                    copyx[2] = copyx[2]  # weight_lbs
-                    copyx[3] = copyx[3]  # rest_interval
-                    copyx[4] = -1  # intraset_heartrate
-                    copyx[5] = -1  # postset_heartrate
-                    copyx[6] = -1  # went to failure
-                    copyx[7] = -1  # did_pull_muscle
-                    copyx[8] = -1 # pulled_muscle_vocab_index
-                    copyx[9] = copyx[9] # used_lifting_gear
-                    copyx[10] = copyx[10] # dayssincelastworkout
+
+                    # exercise_name categories
+                    # reps
+                    # weight_lbs
+                    # rest_interval
+                    copyx["intraset_heartrate"] = -1  # intraset_heartrate
+                    copyx["postset_heartrate"] = -1  # postset_heartrate
+                    copyx["went_to_failure"] = -1  # went to failure
+
+                    for iii in range(len(pulled_muscle_vocabulary)):
+                        copyx["category_pulled_muscle_"+str(iii)] = 0
+
+                    # used_lifting_gear
+                    # dayssincelastworkout
 
                     #init the reps speeds to 0
-                    for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        copyx[11+rs] = 0
+                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                        copyx["velocities_arr_"+str(iiii)] = 0
 
                     unit_workout_clone[-1] = copyx
+
+
 
                     #---------------------------------------------------------------------
 
@@ -456,25 +466,27 @@ def makeRawPackages():
 
                     unit_workout_clone_padded = unit_workout_clone[:]
 
+                    padx = copy.deepcopy(copyx)
+                    # exercise_name index
+                    for iii in range(len(exercise_vocabulary)):
+                        padx["category_exercise_name_" + str(iii)] = 0
+                    padx["reps"] = -1
+                    padx["weight_lbs"] = -1
+                    padx["rest_interval"] = -1
+                    padx["intraset_heartrate"] = -1
+                    padx["postset_heartrate"] = -1
+                    padx["went_to_failure"] = 0
+                    padx["did_pull_muscle"] = 0
+                    for iii in range(len(pulled_muscle_vocabulary)):
+                        padx["category_pulled_muscle_" + str(iii)] = 0
+                    padx["used_lifting_gear"] = 0
+                    padx["days_since_last_workout"] = 0
+                    # init the reps speeds to 0
+                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                        padx["velocities_arr_" + str(iiii)] = velarr[iiii]
+
                     while len(unit_workout_clone_padded) < max_workout_range_array_len:
-                        padx = copyx[:]
-                        padx[0] = -1  # exercise_name index
-                        padx[1] = -1  # reps
-                        padx[2] = -1  # weight_lbs
-                        padx[3] = -1  # rest_interval
-                        padx[4] = -1  # intraset_heartrate
-                        padx[5] = -1  # postset_heartrate
-                        padx[6] = 0  # went to failure
-                        padx[7] = 0  # did_pull_muscle
-                        padx[8] = -1  # pulled_muscle_vocab_index
-                        padx[9] = 0   # used_lifting_gear
-                        padx[10] = 0  # dayssincelastworkout
-
-                        #init the reps speeds to 0
-                        for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                            padx[11+rs] = 0
                         unit_workout_clone_padded.insert(0, padx)
-
 
                     #---------------------------------------------------------------------
 
@@ -484,31 +496,33 @@ def makeRawPackages():
 
                     unit_days_padded = unit_days[:]
 
-                    packaged_day_padded = []
-                    packaged_day_padded.append(-1)  # heart_rate_variability_rmssd
-                    packaged_day_padded.append(-1)  # post_day_wearable_calories_burned
-                    packaged_day_padded.append(-1)  # post_day_calories_in
-                    packaged_day_padded.append(-1)  # post_day_protein_g
-                    packaged_day_padded.append(-1)  # post_day_carbs_g
-                    packaged_day_padded.append(-1)  # post_day_fat_g
-                    packaged_day_padded.append(-1)  # withings_weight_lbs
-                    packaged_day_padded.append(-1)  # withings_body_fat_percent
-                    packaged_day_padded.append(-1)  # withings_muscle_mass_percent
-                    packaged_day_padded.append(-1)  # withings_body_water_percent
-                    packaged_day_padded.append(-1)  # withings_heart_rate_bpm
-                    packaged_day_padded.append(-1)  # withings_bone_mass_percent
-                    packaged_day_padded.append(-1)  # withings_pulse_wave_velocity_m_per_s
-                    packaged_day_padded.append(-1)  # sleeptime_bed_time_ampm
-                    packaged_day_padded.append(-1)  # sleeptime_rise_time_ampm
-                    packaged_day_padded.append(-1)  # sleeptime_efficiency_percent
-                    packaged_day_padded.append(-1)  # sleeptime_alarm_ring_ampm
-                    packaged_day_padded.append(-1)  # sleeptime_alarm_set_ampm
-                    packaged_day_padded.append(-1)  # sleeptime_snoozed
+                    packaged_day_padded = {}
+                    packaged_day_padded["heart_rate_variability_rmssd"] = -1
+                    packaged_day_padded["post_day_wearable_calories_burned"] = -1
+                    packaged_day_padded["post_day_calories_in"] = -1
+                    packaged_day_padded["post_day_protein_g"] = -1
+                    packaged_day_padded["post_day_carbs_g"] = -1
+                    packaged_day_padded["post_day_fat_g"] = -1
+                    packaged_day_padded["withings_weight_lbs"] = -1
+                    packaged_day_padded["withings_body_fat_percent"] = -1
+                    packaged_day_padded["withings_muscle_mass_percent"] = -1
+                    packaged_day_padded["withings_body_water_percent"] = -1
+                    packaged_day_padded["withings_heart_rate_bpm"] = -1
+                    packaged_day_padded["withings_bone_mass_percent"] = -1
+                    packaged_day_padded["withings_pulse_wave_velocity_m_per_s"] = -1
+                    packaged_day_padded["sleeptime_bed_time_ampm_index"] = -1
+                    packaged_day_padded["sleeptime_rise_time_ampm_index"] = -1
+                    packaged_day_padded["sleeptime_efficiency_percent"] = -1
 
-                    packaged_day_padded.append(-1)  # sleeptime_awake_hrs
-                    packaged_day_padded.append(-1)  # sleeptime_light_sleep_hrs
-                    packaged_day_padded.append(-1)  # sleeptime_deep_rem_hrs
-                    packaged_day_padded.append(-1)  # days_since_last_workout
+                    packaged_day_padded["sleeptime_alarm_ring_ampm_index"] = -1
+                    packaged_day_padded["sleeptime_alarm_set_ampm_index"] = -1
+                    packaged_day_padded["sleeptime_snoozed"] = -1
+
+                    packaged_day_padded["sleeptime_awake_hrs"] = -1
+                    packaged_day_padded["sleeptime_light_sleep_hrs"] = -1
+                    packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
+                    packaged_day_padded["days_since_last_workout"] = -1
+
 
                     while len(unit_days_padded) < max_day_range_array_len:
                         unit_days_padded.insert(0, packaged_day_padded)
@@ -521,22 +535,24 @@ def makeRawPackages():
                     # the measured exertions
                     # heartrate or speed
 
+
+
                     has_heartrate = True
                     if (
-                        copyy[4]==-1 and
-                        copyy[5]==-1
+                        copyy["postset_heartrate"]==-1 and
+                        copyy["intraset_heartrate"]==-1
                     ):
                         has_heartrate = False
 
-                    has_speed = False
-                    #init the reps speeds to -1
-                    for rs in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        if copyy[11+rs] > 0:
-                            has_speed = True
+
+                    has_velocities = False
+                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                        if copyy["velocities_arr_" + str(iiii)] > 0.0:
+                            has_velocities = True
 
                     has_valid_y = False
 
-                    if has_speed and has_heartrate:
+                    if has_velocities and has_heartrate:
                         has_valid_y = True
 
                         #UPDATE: model gets horrible with either
@@ -551,20 +567,21 @@ def makeRawPackages():
                         #understanding even with partial data
 
 
+                    #LEFT OFF HERE REZA
 
                     userjson = jsonobjects[xx]["user_vector"]
-                    userx = []
-                    userx.append(userjson["genetically_gifted"])
-                    userx.append(userjson["years_old"])
-                    userx.append(userjson["wrist_width_inches"])
-                    userx.append(userjson["ankle_width_inches"])
-                    userx.append(userjson["sex_is_male"])
-                    userx.append(userjson["height_inches"])
-                    userx.append(userjson["harris_benedict_bmr"])
+                    userx = {}
+                    userx["genetically_gifted"] = userjson["genetically_gifted"]
+                    userx["years_old"] = userjson["years_old"]
+                    userx["wrist_width_inches"] = userjson["wrist_width_inches"]
+                    userx["ankle_width_inches"] = userjson["ankle_width_inches"]
+                    userx["sex_is_male"] = userjson["sex_is_male"]
+                    userx["height_inches"] = userjson["height_inches"]
+                    userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
 
                     #this is what we r gonna package for the NN
                     workoutxseries = unit_workout_clone_padded[:]
-                    workouty = copyy[:]
+                    workouty = copy.deepcopy(copyy)
                     dayseries = unit_days_padded[:]
                     userx = userx
 
@@ -591,23 +608,19 @@ def writeNormValues():
 
     picklefilenames = getRawPickleFilenames()
 
-    #picklefilenames = os.listdir(CONFIG_NN_PICKLES_PATH)
-    #if ".DS_Store" in picklefilenames:
-    #    picklefilenames.remove(".DS_Store")
-
     unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH + picklefilenames[0], "rb"))
 
-    dayseriesxmin = [9999.0]*len(unpickled_package["dayseriesx"][0])
-    dayseriesxmax = [-9999.0]*len(unpickled_package["dayseriesx"][0])
+    dayseriesxmin = [9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
+    dayseriesxmax = [-9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
 
-    userxmin = [9999.0]*len(unpickled_package["userx"])
-    userxmax = [-9999.0]*len(unpickled_package["userx"])
+    userxmin = [9999.0]*len((unpickled_package["userx"]).keys())
+    userxmax = [-9999.0]*len((unpickled_package["userx"]).keys())
 
-    workoutxseriesmin = [9999.0]*len(unpickled_package["workoutxseries"][0])
-    workoutxseriesmax = [-9999.0]*len(unpickled_package["workoutxseries"][0])
+    workoutxseriesmin = [9999.0]*len((unpickled_package["workoutxseries"][0]).keys())
+    workoutxseriesmax = [-9999.0]*len((unpickled_package["workoutxseries"][0]).keys())
 
-    workoutymin = [9999.0]*len(unpickled_package["workouty"])
-    workoutymax = [-9999.0]*len(unpickled_package["workouty"])
+    workoutymin = [9999.0]*len((unpickled_package["workouty"]).keys())
+    workoutymax = [-9999.0]*len((unpickled_package["workouty"]).keys())
 
     for picklefilename in picklefilenames:
 
@@ -616,16 +629,20 @@ def writeNormValues():
         unpickledayseriesx = unpickled_package["dayseriesx"]
         for i in range(len(unpickledayseriesx)):
             daystep = unpickledayseriesx[i]
-            for ii in range(len(daystep)):
-                aval = float(daystep[ii])
+            daystepkeys = sorted(list(daystep.keys()))
+            for ii in range(len(daystepkeys)):
+                akey = daystepkeys[ii]
+                aval = float(daystep[akey])
                 if aval < dayseriesxmin[ii]:
                     dayseriesxmin[ii] = aval
                 if aval > dayseriesxmax[ii]:
                     dayseriesxmax[ii] = aval
 
         unpickleduserx = unpickled_package["userx"]
-        for i in range(len(unpickleduserx)):
-            aval = float(unpickleduserx[i])
+        userxkeys = sorted(unpickleduserx.keys())
+        for i in range(len(userxkeys)):
+            akey = userxkeys[i]
+            aval = float(unpickleduserx[akey])
             if aval < userxmin[i]:
                 userxmin[i] = aval
             if aval > userxmax[i]:
@@ -634,16 +651,21 @@ def writeNormValues():
         unpickledworkoutxseries = unpickled_package["workoutxseries"]
         for i in range(len(unpickledworkoutxseries)):
             workoutstep = unpickledworkoutxseries[i]
-            for ii in range(len(workoutstep)):
-                aval = float(workoutstep[ii])
+
+            workoutstepkeys = sorted(list(workoutstep.keys()))
+            for ii in range(len(workoutstepkeys)):
+                akey = workoutstepkeys[ii]
+                aval = float(workoutstep[akey])
                 if aval < workoutxseriesmin[ii]:
                     workoutxseriesmin[ii] = aval
                 if aval > workoutxseriesmax[ii]:
                     workoutxseriesmax[ii] = aval
 
         unpickledworkouty = unpickled_package["workouty"]
-        for i in range(len(unpickledworkouty)):
-            aval = float(unpickledworkouty[i])
+        unpickledworkoutykeys = sorted(list(unpickledworkouty.keys()))
+        for i in range(len(unpickledworkoutykeys)):
+            akey = unpickledworkoutykeys[i]
+            aval = float(unpickledworkouty[akey])
             if aval < workoutymin[i]:
                 workoutymin[i] = aval
             if aval > workoutymax[i]:
@@ -981,6 +1003,8 @@ def trainStressAdaptationModel():
 
     makeRawPackages()
     writeNormValues()
+
+    '''
     makeNormalizedPickles()
 
     all_names = getUnitNames()
@@ -1059,8 +1083,10 @@ def trainStressAdaptationModel():
             abc = None
             train_error = train_results[4]
             print "trainExtern: " + str(train_error)
+            
+    '''
 
-        '''
+    '''
         while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
             batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
             valid_names_copy.pop(0)
@@ -1112,10 +1138,11 @@ def trainStressAdaptationModel():
         if train_error>valid_error:
             print "model saved"
             alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
-        '''
+    
 
 
     sess.close()
+    '''
 
 
 def trainRLAgent():
