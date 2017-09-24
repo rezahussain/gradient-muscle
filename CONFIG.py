@@ -30,8 +30,7 @@ CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/stressmodel"
 CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradient-muscle/workoutdata/rezadata/"
 
 #need to make these next three
-CONFIG_NN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
-CONFIG_NORMALIZED_NN_PICKLES_PATH = "/Users/admin/Desktop/tmp/normalized_pickles_folder/"
+CONFIG_NN_HUMAN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
 CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Desktop/tmp/normvals"
 
 CONFIG_WORKOUT_LOOKBACK = 1

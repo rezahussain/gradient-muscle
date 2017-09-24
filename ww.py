@@ -227,7 +227,7 @@ def calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd)
 
 print workout_ranges
 
-def makeRawPackages():
+def make_raw_units():
 
     for r in workout_ranges:
 
@@ -567,8 +567,6 @@ def makeRawPackages():
                         #understanding even with partial data
 
 
-                    #LEFT OFF HERE REZA
-
                     userjson = jsonobjects[xx]["user_vector"]
                     userx = {}
                     userx["genetically_gifted"] = userjson["genetically_gifted"]
@@ -594,21 +592,25 @@ def makeRawPackages():
                     savename = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]+"_"+str(ii)
 
                     if has_valid_y:
-                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_PICKLES_PATH +savename , "wb"))
+                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH +savename , "wb"))
 
 
 
-def getRawPickleFilenames():
-    picklefilenames = os.listdir(CONFIG.CONFIG_NN_PICKLES_PATH)
+def get_raw_pickle_filenames():
+    picklefilenames = os.listdir(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
     if ".DS_Store" in picklefilenames:
         picklefilenames.remove(".DS_Store")
     return picklefilenames
 
-def writeNormValues():
+def get_norm_values():
+    normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+    return normVals
 
-    picklefilenames = getRawPickleFilenames()
+def write_norm_values():
 
-    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH + picklefilenames[0], "rb"))
+    picklefilenames = get_raw_pickle_filenames()
+
+    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilenames[0], "rb"))
 
     dayseriesxmin = [9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
     dayseriesxmax = [-9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
@@ -624,7 +626,7 @@ def writeNormValues():
 
     for picklefilename in picklefilenames:
 
-        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH+picklefilename , "rb"))
 
         unpickledayseriesx = unpickled_package["dayseriesx"]
         for i in range(len(unpickledayseriesx)):
@@ -685,7 +687,7 @@ def writeNormValues():
 
 
 
-def normalize_unit(norm_vals, packaged_unit):
+def normalize_unit(packaged_unit,norm_vals):
 
     dayseriesxmin = norm_vals["dayseriesxmin"]
     dayseriesxmax = norm_vals["daysseriesxmax"]
@@ -703,67 +705,85 @@ def normalize_unit(norm_vals, packaged_unit):
     n_unpickleddayseriesx = []
     for i in range(len(unpickledayseriesx)):
         daystep = unpickledayseriesx[i]
-        for ii in range(len(daystep)):
-            if daystep[ii] > dayseriesxmax[ii]:
-                daystep[ii] = dayseriesxmax[ii]
-            if daystep[ii] < dayseriesxmin[ii]:
-                daystep[ii] = dayseriesxmin[ii]
+        ndaystep = []
+        daystepkeys = sorted(list(daystep.keys()))
+        for ii in range(len(daystepkeys)):
+            akey = daystepkeys[ii]
+            aval = daystep[akey]
+            if aval > dayseriesxmax[ii]:
+                aval = dayseriesxmax[ii]
+            if aval < dayseriesxmin[ii]:
+                aval = dayseriesxmin[ii]
             if (dayseriesxmax[ii] - dayseriesxmin[ii]) > 0:
-                daystep[ii] = (daystep[ii] - dayseriesxmin[ii]) / (dayseriesxmax[ii] - dayseriesxmin[ii])
+                aval = (aval - dayseriesxmin[ii]) / (dayseriesxmax[ii] - dayseriesxmin[ii])
             else:
-                daystep[ii] = 0
-        n_unpickleddayseriesx.append(daystep)
+                aval = 0
+            ndaystep.append(aval)
+        n_unpickleddayseriesx.append(ndaystep)
     n_packaged_unit["dayseriesx"] = n_unpickleddayseriesx
+
 
     unpickledworkoutxseries = packaged_unit["workoutxseries"]
     n_unpickledworkoutxseries = []
     for i in range(len(unpickledworkoutxseries)):
         workoutstep = unpickledworkoutxseries[i]
-        for ii in range(len(workoutstep)):
-            if workoutstep[ii] > workoutxseriesmax[ii]:
-                workoutstep[ii] = workoutxseriesmax[ii]
-            if workoutstep[ii] < workoutxseriesmin[ii]:
-                workoutstep[ii] = workoutxseriesmin[ii]
+        nworkoutstep = []
+        workoutstepkeys = sorted(list(workoutstep.keys()))
+        for ii in range(len(workoutstepkeys)):
+            akey = workoutstepkeys[ii]
+            aval = workoutstep[akey]
+            if aval > workoutxseriesmax[ii]:
+                aval = workoutxseriesmax[ii]
+            if aval < workoutxseriesmin[ii]:
+                aval = workoutxseriesmin[ii]
             if (workoutxseriesmax[ii] - workoutxseriesmin[ii]) > 0:
-                workoutstep[ii] = (workoutstep[ii] - workoutxseriesmin[ii]) / (
-                workoutxseriesmax[ii] - workoutxseriesmin[ii])
+                aval = (aval - workoutxseriesmin[ii]) / (workoutxseriesmax[ii] - workoutxseriesmin[ii])
             else:
-                workoutstep[ii] = 0
-        n_unpickledworkoutxseries.append(workoutstep)
+                aval = 0
+            nworkoutstep.append(aval)
+        n_unpickledworkoutxseries.append(nworkoutstep)
     n_packaged_unit["workoutxseries"] = n_unpickledworkoutxseries
+
 
     unpickleduserx = packaged_unit["userx"]
     n_unpickleduserx = []
-    for i in range(len(unpickleduserx)):
-        if unpickleduserx[i] > userxmax[i]:
-            unpickleduserx[i] = userxmax[i]
-        if unpickleduserx[i] < userxmin[i]:
-            unpickleduserx[i] = userxmin[i]
+    unpickleduserxkeys = sorted(list(unpickleduserx.keys()))
+    for i in range(len(unpickleduserxkeys)):
+        akey = unpickleduserxkeys[i]
+        aval = unpickleduserx[akey]
+        if aval > userxmax[i]:
+            aval = userxmax[i]
+        if aval < userxmin[i]:
+            aval = userxmin[i]
         if (userxmax[i] - userxmin[i]) > 0:
-            unpickleduserx[i] = (unpickleduserx[i] - userxmin[i]) / (userxmax[i] - userxmin[i])
+            aval = (aval - userxmin[i]) / (userxmax[i] - userxmin[i])
         else:
-            unpickleduserx[i] = 0
-        n_unpickleduserx.append(unpickleduserx[i])
+            aval = 0
+        n_unpickleduserx.append(aval)
     n_packaged_unit["userx"] = n_unpickleduserx
+
 
     unpickledworkouty = packaged_unit["workouty"]
     n_unpickledworkouty = []
-    for i in range(len(unpickledworkouty)):
-        if unpickledworkouty[i] > workoutymax[i]:
-            unpickledworkouty[i] = workoutymax[i]
-        if unpickledworkouty[i] < workoutymin[i]:
-            unpickledworkouty[i] = workoutymin[i]
+    unpickledworkoutykeys = sorted(list(unpickledworkouty.keys()))
+    for i in range(len(unpickledworkoutykeys)):
+        akey = unpickledworkoutykeys[i]
+        aval = unpickledworkouty[akey]
+        if aval > workoutymax[i]:
+            aval = workoutymax[i]
+        if aval < workoutymin[i]:
+            aval = workoutymin[i]
         if (workoutymax[i] - workoutymin[i]) > 0:
-            unpickledworkouty[i] = (unpickledworkouty[i] - workoutymin[i]) / (workoutymax[i] - workoutymin[i])
+            aval = (aval - workoutymin[i]) / (workoutymax[i] - workoutymin[i])
         else:
-            unpickledworkouty[i] = 0
-        n_unpickledworkouty.append(unpickledworkouty[i])
+            aval = 0
+        n_unpickledworkouty.append(aval)
     n_packaged_unit["workouty"] = n_unpickledworkouty
 
     return n_packaged_unit
 
 
-
+#LOOKOVER
 def denormalize_workout_series_individual_timestep(n_workout_timestep):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -784,7 +804,7 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep):
 
     return workout_step
 
-
+#LOOKOVER
 def normalize_workout_series_individual_timestep(human_workout_timestep):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -808,30 +828,35 @@ def normalize_workout_series_individual_timestep(human_workout_timestep):
 
 
 
-
-
-
-#now normalize the raw files
+#REMOVE
 def makeNormalizedPickles():
     picklefilenames = getRawPickleFilenames()
     normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
     for picklefilename in picklefilenames:
-        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_PICKLES_PATH+picklefilename , "rb"))
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH+picklefilename , "rb"))
         n_unpickled_package =  normalize_unit(normVals, unpickled_package)
         pickle.dump(n_unpickled_package, open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH+picklefilename, "wb"))
 
 
 
-def getUnitNames():
-    picklefilenames = os.listdir(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH)
+def get_unit_names():
+    picklefilenames = os.listdir(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
     if ".DS_Store" in picklefilenames:
         picklefilenames.remove(".DS_Store")
     return picklefilenames
 
-def getUnitForName(unit_name):
-    unpickled_package = pickle.load(open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH + unit_name, "rb"))
+def get_human_unit_for_name(unit_name):
+    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + unit_name, "rb"))
     return unpickled_package
 
+def get_machine_unit_for_name(unit_name,norm_vals):
+    human_unit = get_human_unit_for_name(unit_name)
+    machine_unit = normalize_unit(human_unit,norm_vals)
+    return machine_unit
+
+def convert_human_unit_to_machine(h_unit,norm_vals):
+    m_unit = normalize_unit(h_unit,norm_vals)
+    return m_unit
 
 
 
@@ -958,18 +983,27 @@ class Lift_NN():
         self.asaver = tf.train.Saver()
 
 
-def buildBatchFromNames(batch_unit_names,batch_size):
+def build_batch_from_names(batch_unit_names,batch_size,for_human=None):
+
+    assert for_human is not None,"forgot to specify for_human flag build_batch_from_names"
 
     day_series_batch = []
     user_x_batch = []
     workout_series_batch = []
     workout_y_batch = []
 
+    norm_vals = get_norm_values()
     i = 0
     while i < batch_size:
         i = i + 1
         a_name = batch_unit_names.pop(0)
-        loaded_unit = getUnitForName(a_name)
+
+        loaded_unit = None
+        if for_human:
+            loaded_unit = get_human_unit_for_name(a_name)
+        else:
+            loaded_unit = get_machine_unit_for_name(a_name,norm_vals)
+
         a_day_series = loaded_unit["dayseriesx"]
         a_user_x = loaded_unit["userx"]
         a_workout_series = loaded_unit["workoutxseries"]
@@ -979,12 +1013,6 @@ def buildBatchFromNames(batch_unit_names,batch_size):
         user_x_batch.append(a_user_x)
         workout_series_batch.append(a_workout_series)
         workout_y_batch.append(a_workout_y)
-
-        # if you are using batches, they have to have the same shape
-        # day_series_batch.append(a_day_series)
-        # user_x_batch.append(a_user_x)
-        # workout_series_batch.append(a_workout_series)
-        # workout_y_batch.append(a_workout_y)
 
     day_series_batch = np.array(day_series_batch)
     user_x_batch = np.array(user_x_batch)
@@ -999,16 +1027,15 @@ def buildBatchFromNames(batch_unit_names,batch_size):
     return workout_y_batch,workout_series_batch,user_x_batch,day_series_batch
 
 
-def trainStressAdaptationModel():
+def train_stress_adaptation_model():
 
-    makeRawPackages()
-    writeNormValues()
+    make_raw_units()
+    write_norm_values()
 
-    '''
-    makeNormalizedPickles()
+    all_names = get_unit_names()
+    norm_vals = get_norm_values()
+    loaded_unit = get_machine_unit_for_name(all_names[0],norm_vals)
 
-    all_names = getUnitNames()
-    loaded_unit = getUnitForName(all_names[0])
     some_day_series = loaded_unit["dayseriesx"]
     some_user_x = loaded_unit["userx"]
     some_workout_series = loaded_unit["workoutxseries"]
@@ -1032,12 +1059,15 @@ def trainStressAdaptationModel():
 
         valid_names_copy = valid_names[:]
 
-        train_error = None
-        valid_error = None
+        train_error = 0.0
+        valid_error = 0.0
 
         while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+
             batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
-            train_names_copy.pop(0)
+
+            for ii in range(CONFIG.CONFIG_BATCH_SIZE):
+                train_names_copy.pop(0)
 
             #day_series_batch = []
             #user_x_batch = []
@@ -1045,7 +1075,7 @@ def trainStressAdaptationModel():
             #workout_y_batch = []
 
             wo_y_batch,wo_series_batch,user_x_batch,day_series_batch \
-                = buildBatchFromNames(batch_unit_train_names,CONFIG.CONFIG_BATCH_SIZE)
+                = build_batch_from_names(batch_unit_train_names,CONFIG.CONFIG_BATCH_SIZE,for_human=False)
 
             print "before"
             print wo_y_batch.shape
@@ -1081,22 +1111,24 @@ def trainStressAdaptationModel():
                                         alw.world_workout_y:wo_y_batch
                                         })
             abc = None
-            train_error = train_results[4]
-            print "trainExtern: " + str(train_error)
-            
-    '''
+            train_error += float(train_results[4])
+            print "trainExtern: " + str(train_error/len(train_names))
 
-    '''
+
         while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
+
             batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
-            valid_names_copy.pop(0)
+
+            for ii in range(CONFIG.CONFIG_BATCH_SIZE):
+                valid_names_copy.pop(0)
 
             day_series_batch = []
             user_x_batch = []
             workout_series_batch = []
             workout_y_batch = []
 
-            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch = buildBatchFromNames(batch_unit_valid_names)
+            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch \
+                = build_batch_from_names(batch_unit_valid_names,CONFIG.CONFIG_BATCH_SIZE,for_human=False)
 
             #print workout_y_batch.shape
             #print workout_series_batch.shape
@@ -1131,24 +1163,27 @@ def trainStressAdaptationModel():
                                         alw.world_workout_y:wo_y_batch
                                         })
             abc = None
-            valid_error = valid_results[3]
+            valid_error += float(valid_results[3])
             #print "trainExtern: " + str(train_error)
+
+        train_error /= float(len(train_names))
+        valid_error /= float(len(valid_names))
         print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error)
 
-        if train_error>valid_error:
+        if train_error > valid_error:
             print "model saved"
             alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
-    
-
 
     sess.close()
-    '''
 
 
-def trainRLAgent():
 
-    all_names = getUnitNames()
-    loaded_unit = getUnitForName(all_names[0])
+def train_rl_agent():
+
+    all_names = get_unit_names()
+    norm_vals = get_norm_values()
+
+    loaded_unit = get_machine_unit_for_name(all_names[0],norm_vals)
     some_day_series = loaded_unit["dayseriesx"]
     some_user_x = loaded_unit["userx"]
     some_workout_series = loaded_unit["workoutxseries"]
@@ -1159,7 +1194,6 @@ def trainRLAgent():
     sess = tf.Session()
     sess.run(init_op)
 
-
     #so lets use each of these real datatpoints as a starting point
     #and let the model progress from there for a fixed number of steps?
     shuffle(all_names)
@@ -1167,31 +1201,37 @@ def trainRLAgent():
     starting_point_name = []
     starting_point_name.append(all_names[0])
 
-    day_series_batch = []
-    user_x_batch = []
-    workout_series_batch = []
-    workout_y_batch = []
+    wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(starting_point_name,1,for_human=True)
+    print wo_y_batch_h.shape
+    print wo_xseries_batch_h.shape
+    print user_x_batch_h.shape
+    print day_series_batch_h.shape
 
-    workout_y_batch, workout_series_batch, user_x_batch, day_series_batch = buildBatchFromNames(starting_point_name,1)
 
-    print workout_y_batch.shape
-    print workout_series_batch.shape
-    print user_x_batch.shape
-    print day_series_batch.shape
+    h_unit = {}
+    h_unit["dayseriesx"] = day_series_batch_h[0]
+    h_unit["userx"] = user_x_batch_h[0]
+    h_unit["workoutxseries"] = wo_xseries_batch_h[0]
+    h_unit["workouty"] = wo_y_batch_h[0]
+
+    m_unit = convert_human_unit_to_machine(h_unit,norm_vals)
+
+    day_series_batch_m = [m_unit["dayseriesx"]]
+    user_x_batch_m = [m_unit["userx"]]
+    wo_xseries_batch_m = [m_unit["workoutxseries"]]
+    wo_y_batch_m = [m_unit["workouty"]]
 
     ABC = None
 
     results = sess.run([
         alw.agent_day_series_input,
         alw.agent_workout_series_input,
-        alw.agent_y,
-
-    ],
-
+        alw.agent_y
+        ],
         feed_dict={
-            alw.agent_day_series_input: day_series_batch,
-            alw.agent_workout_series_input: workout_series_batch,
-            alw.agent_user_vector_input: user_x_batch
+            alw.agent_day_series_input: day_series_batch_m,
+            alw.agent_workout_series_input: wo_xseries_batch_m,
+            alw.agent_user_vector_input: user_x_batch_m
         })
 
     agent_softmax_choices = results[2][0]
@@ -1201,6 +1241,7 @@ def trainRLAgent():
     abc = None
     print oai
 
+    '''
     #now just use the index of the highest softmax value to lookup the action
     #rl_all_possible_actions
     human_readable_action = rl_all_possible_actions[oai]
@@ -1215,6 +1256,7 @@ def trainRLAgent():
     action = human_readable_action
 
     agent_world_take_step(state,action,alw)
+    '''
 
 
 
@@ -1347,9 +1389,9 @@ def agent_world_take_step(state,action,ai_graph):
 
 
 
-
+train_rl_agent()
 #trainRLAgent()
-trainStressAdaptationModel()
+#trainStressAdaptationModel()
 
 
 
