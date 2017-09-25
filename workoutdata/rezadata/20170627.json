@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"deadlift",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":[0.66,0.61,0.8,0.72],
 			"postset_time_ampm":"07:39pm",
@@ -58,7 +59,8 @@
 		,
 		{
 			"exercise_name":"deadlift",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":155,
 			"velocities_m_per_s_arr":[0.36,0.56,0.55,0.61,0.71],
 			"postset_time_ampm":"07:42pm",
@@ -71,7 +73,8 @@
 		},
 		{
 			"exercise_name":"deadlift",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":[1.43,0.65,0.59],
 			"postset_time_ampm":"07:45pm",
@@ -85,7 +88,8 @@
 		,
 		{
 			"exercise_name":"deadlift",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":205,
 			"velocities_m_per_s_arr":[0.54,0.51,0.51],
 			"postset_time_ampm":"07:47pm",
@@ -99,7 +103,8 @@
 		,
 		{
 			"exercise_name":"overheadpress",
-			"reps":10,
+			"reps_planned":10,
+			"reps_completed":10,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":[0.83,0.83,0.81,0.8,0.7,0.68,0.83,0.81,0.91,0.55],
 			"postset_time_ampm":"07:52pm",
@@ -113,7 +118,8 @@
 		,
 		{
 			"exercise_name":"overheadpress",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":65,
 			"velocities_m_per_s_arr":[0.5,0.43,0.44,0.38],
 			"postset_time_ampm":"07:57pm",
@@ -127,7 +133,8 @@
 		,
 		{
 			"exercise_name":"overheadpress",
-			"reps":7,
+			"reps_planned":7,
+			"reps_completed":7,
 			"weight_lbs":55,
 			"velocities_m_per_s_arr":[0.75,0.76,0.55,0.57,0.53,0.49,0.69],
 			"postset_time_ampm":"07:57pm",
@@ -140,7 +147,8 @@
 		},
 		{
 			"exercise_name":"pullups",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":160.7,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:03pm",

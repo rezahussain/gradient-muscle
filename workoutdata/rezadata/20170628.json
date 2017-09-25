@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:49pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":8,
+			"reps_planned":8,
+			"reps_completed":8,
 			"weight_lbs":95,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:51pm",
@@ -71,7 +73,8 @@
 		,
 		{
 			"exercise_name":"squat",
-			"reps":8,
+			"reps_planned":8,
+			"reps_completed":8,
 			"weight_lbs":115,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:55pm",
@@ -85,7 +88,8 @@
 		,
 		{
 			"exercise_name":"squat",
-			"reps":8,
+			"reps_planned":8,
+			"reps_completed":8,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:58pm",
@@ -99,7 +103,8 @@
 		,
 		{
 			"exercise_name":"frontsquat",
-			"reps":6,
+			"reps_planned":6,
+			"reps_completed":6,
 			"weight_lbs":55,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,

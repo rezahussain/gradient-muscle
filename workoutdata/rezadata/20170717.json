@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":[1,0.98,0.98,1.04,1.03],
 			"postset_time_ampm":"06:47pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":[0.73,0.7],
 			"postset_time_ampm":"06:49pm",
@@ -70,7 +72,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":[0.58,0.54,0.57],
 			"postset_time_ampm":"06:51pm",
@@ -83,7 +86,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":225,
 			"velocities_m_per_s_arr":[0.51,0.48,0.45],
 			"postset_time_ampm":"06:54pm",
@@ -96,7 +100,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":245,
 			"velocities_m_per_s_arr":[0.28,0.48,0.44,0.41],
 			"postset_time_ampm":"06:57pm",
@@ -109,7 +114,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":6,
+			"reps_planned":6,
+			"reps_completed":6,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":[0.59,0.58,0.62,0.57,0.55,0.52],
 			"postset_time_ampm":"07:02pm",
@@ -122,7 +128,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":10,
+			"reps_planned":10,
+			"reps_completed":10,
 			"weight_lbs":105,
 			"velocities_m_per_s_arr":[0.6,0.64,0.66,0.65,0.61,0.58,0.55],
 			"postset_time_ampm":"07:09pm",
@@ -135,7 +142,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":6,
+			"reps_planned":6,
+			"reps_completed":6,
 			"weight_lbs":115,
 			"velocities_m_per_s_arr":[0.59,0.51,0.51,0.51,0.45],
 			"postset_time_ampm":"07:09pm",
@@ -148,7 +156,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":125,
 			"velocities_m_per_s_arr":[0.41,0.38,0.41,0.41],
 			"postset_time_ampm":"07:17pm",

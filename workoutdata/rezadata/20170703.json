@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:53pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:55pm",
@@ -70,7 +72,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:57pm",
@@ -83,7 +86,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":205,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:01pm",
@@ -97,7 +101,8 @@
 		,
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":225,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:05pm",
@@ -111,7 +116,8 @@
 		,
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":245,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:09pm",
@@ -124,7 +130,8 @@
 		},
 		{
 			"exercise_name":"pullups",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":161.7,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,
@@ -137,7 +144,8 @@
 		},
 		{
 			"exercise_name":"hangingkneeraise",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":161.7,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,
@@ -150,7 +158,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":8,
+			"reps_planned":8,
+			"reps_completed":8,
 			"weight_lbs":95,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:27pm",
@@ -163,7 +172,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":105,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,
@@ -176,7 +186,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":115,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"08:32pm",
@@ -189,7 +200,8 @@
 		},
 		{
 			"exercise_name":"abmachine",
-			"reps":25,
+			"reps_planned":25,
+			"reps_completed":25,
 			"weight_lbs":50,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,

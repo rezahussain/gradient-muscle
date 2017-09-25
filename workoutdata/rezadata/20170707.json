@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"deadlift",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:53pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"deadlift",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:59pm",
@@ -70,7 +72,8 @@
 		},
 		{
 			"exercise_name":"deadlift",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":205,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:01pm",
@@ -83,7 +86,8 @@
 		},
 		{
 			"exercise_name":"deadlift",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":225,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:04pm",
@@ -97,7 +101,8 @@
 		,
 		{
 			"exercise_name":"deadlift",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":245,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:08pm",

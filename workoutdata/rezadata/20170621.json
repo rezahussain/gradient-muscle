@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"squat",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":[1.14,0.94,1.17,1.17],
 			"postset_time_ampm":"07:06pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":95,
 			"velocities_m_per_s_arr":[1.01,1.03,0.43,0.96,0.99],
 			"postset_time_ampm":"07:07pm",
@@ -70,7 +72,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":[0.73,0.55,0.88,0.83,0.92],
 			"postset_time_ampm":"07:10pm",
@@ -83,7 +86,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":155,
 			"velocities_m_per_s_arr":[0.67,0.8,0.71,0.49],
 			"postset_time_ampm":"07:12pm",
@@ -96,7 +100,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":[0.66,0.66,0.63],
 			"postset_time_ampm":"07:15pm",
@@ -109,7 +114,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":205,
 			"velocities_m_per_s_arr":[0.6,0.62,0.56],
 			"postset_time_ampm":"07:18pm",

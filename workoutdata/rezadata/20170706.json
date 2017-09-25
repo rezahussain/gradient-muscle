@@ -44,7 +44,8 @@
 	[
 		{
 			"exercise_name":"squat",
-			"reps":2,
+			"reps_planned":2,
+			"reps_completed":2,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:53pm",
@@ -57,7 +58,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":2,
+			"reps_planned":2,
+			"reps_completed":2,
 			"weight_lbs":135,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:54pm",
@@ -70,7 +72,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":185,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:56pm",
@@ -83,7 +86,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":225,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"06:59pm",
@@ -96,7 +100,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":245,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:02pm",
@@ -109,7 +114,8 @@
 		},
 		{
 			"exercise_name":"squat",
-			"reps":3,
+			"reps_planned":3,
+			"reps_completed":3,
 			"weight_lbs":255,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:05pm",
@@ -122,7 +128,8 @@
 		},
 		{
 			"exercise_name":"pullups",
-			"reps":6,
+			"reps_planned":6,
+			"reps_completed":6,
 			"weight_lbs":160.3,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:11pm",
@@ -135,7 +142,8 @@
 		},
 		{
 			"exercise_name":"hangingkneeraise",
-			"reps":5,
+			"reps_planned":5,
+			"reps_completed":5,
 			"weight_lbs":160.3,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":-1,
@@ -148,7 +156,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":9,
+			"reps_planned":9,
+			"reps_completed":9,
 			"weight_lbs":95,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:20pm",
@@ -161,7 +170,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":6,
+			"reps_planned":6,
+			"reps_completed":6,
 			"weight_lbs":105,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:23pm",
@@ -174,7 +184,8 @@
 		},
 		{
 			"exercise_name":"benchpress",
-			"reps":4,
+			"reps_planned":4,
+			"reps_completed":4,
 			"weight_lbs":115,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:26pm",
@@ -187,7 +198,8 @@
 		},
 		{
 			"exercise_name":"inclinepress",
-			"reps":12,
+			"reps_planned":12,
+			"reps_completed":12,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:28pm",
@@ -200,7 +212,8 @@
 		},
 		{
 			"exercise_name":"inclinepress",
-			"reps":8,
+			"reps_planned":8,
+			"reps_completed":8,
 			"weight_lbs":45,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:31pm",
@@ -213,7 +226,8 @@
 		},
 		{
 			"exercise_name":"abmachine",
-			"reps":25,
+			"reps_planned":25,
+			"reps_completed":25,
 			"weight_lbs":55,
 			"velocities_m_per_s_arr":-1,
 			"postset_time_ampm":"07:35pm",

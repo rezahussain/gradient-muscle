@@ -337,7 +337,8 @@ def make_raw_units():
                     en = exercise_vocabulary.index(ex_name)
                     packaged_workout["category_exercise_name_" + str(en)] = 1
 
-                    packaged_workout["reps"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps"]
+                    packaged_workout["reps_planned"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps_planned"]
+                    packaged_workout["reps_completed"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps_completed"]
                     packaged_workout["weight_lbs"] = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
 
                     # we will let nn calc rest intervals from
@@ -401,6 +402,19 @@ def make_raw_units():
                     velarr = []
                     if vmpsa != -1:
                         velarr.extend(vmpsa)
+
+                        #if the bar sensor missed reps
+                        #we pad reps here till we have matching num of
+                        #completed reps and velocities
+                        #what will happen if you dont do this is the model
+                        #will start to predict when the bar sensor misses reps
+                        #which we dont want
+
+                        reps_completed = packaged_workout["reps_completed"]
+                        while len(velarr) < reps_completed:
+                            velarr.append(np.mean(vmpsa))
+
+
                     while len(velarr) < CONFIG.CONFIG_MAX_REPS_PER_SET:
                         velarr.append(0)
 
@@ -440,6 +454,7 @@ def make_raw_units():
                     copyx["intraset_heartrate"] = -1  # intraset_heartrate
                     copyx["postset_heartrate"] = -1  # postset_heartrate
                     copyx["went_to_failure"] = -1  # went to failure
+                    copyx["reps_completed"] = -1 #reps_completed
 
                     for iii in range(len(pulled_muscle_vocabulary)):
                         copyx["category_pulled_muscle_"+str(iii)] = 0
@@ -470,7 +485,8 @@ def make_raw_units():
                     # exercise_name index
                     for iii in range(len(exercise_vocabulary)):
                         padx["category_exercise_name_" + str(iii)] = 0
-                    padx["reps"] = -1
+                    padx["reps_planned"] = -1
+                    padx["reps_completed"] = -1
                     padx["weight_lbs"] = -1
                     padx["rest_interval"] = -1
                     padx["intraset_heartrate"] = -1
@@ -827,15 +843,6 @@ def normalize_workout_series_individual_timestep(human_workout_timestep):
     return machine_workout_timestep
 
 
-
-#REMOVE
-def makeNormalizedPickles():
-    picklefilenames = getRawPickleFilenames()
-    normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
-    for picklefilename in picklefilenames:
-        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH+picklefilename , "rb"))
-        n_unpickled_package =  normalize_unit(normVals, unpickled_package)
-        pickle.dump(n_unpickled_package, open(CONFIG.CONFIG_NORMALIZED_NN_PICKLES_PATH+picklefilename, "wb"))
 
 
 
@@ -1241,12 +1248,13 @@ def train_rl_agent():
     abc = None
     print oai
 
-    '''
+
     #now just use the index of the highest softmax value to lookup the action
     #rl_all_possible_actions
     human_readable_action = rl_all_possible_actions[oai]
     print human_readable_action
 
+    '''
     #now pass the chosen action + state to the env
     state = {}
     state['workout_series'] = workout_series_batch[0]
@@ -1290,7 +1298,7 @@ def agent_world_take_step(state,action,ai_graph):
     #make a workout vector unit from chosen action
 
     action_exercise_name_human = (action.split(":")[0]).split("=")[1]
-    action_reps_human = (action.split(":")[1]).split("=")[1]
+    action_planned_reps_human = (action.split(":")[1]).split("=")[1]
     action_weight_human = (action.split(":")[2]).split("=")[1]
 
     # we will let nn calc rest intervals from
@@ -1309,7 +1317,7 @@ def agent_world_take_step(state,action,ai_graph):
 
     en = exercise_vocabulary.index(action_exercise_name_human)
     new_workout_vector_timestep[0] = en                         # exercise vocab index
-    new_workout_vector_timestep[1] = action_reps_human          # reps
+    new_workout_vector_timestep[1] = action_planned_reps_human  # reps
     new_workout_vector_timestep[2] = action_weight_human        # weight_lbs
     new_workout_vector_timestep[3] = rest_interval_human        # rest_interval
 
@@ -1389,7 +1397,8 @@ def agent_world_take_step(state,action,ai_graph):
 
 
 
-train_rl_agent()
+train_stress_adaptation_model()
+#train_rl_agent()
 #trainRLAgent()
 #trainStressAdaptationModel()
 
