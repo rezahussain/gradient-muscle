@@ -224,6 +224,90 @@ def calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd)
 #---------------------------------------------------------->
 
 
+def make_workout_step_human(
+        exercise_name,
+        reps_planned,
+        reps_completed,
+        weight_lbs,
+        intraset_heartrate,
+        postset_heartrate,
+        went_to_failure,
+        did_pull_muscle,
+        pulled_muscle_name,
+        used_lifting_gear,
+        unit_days_arr_human,
+        velocities_m_per_s_arr
+
+):
+    packaged_workout = {}
+
+    # use a hot vector for which exercise they r doing
+    for iii in range(len(exercise_vocabulary)):
+        packaged_workout["category_exercise_name_" + str(iii)] = 0
+    ex_name = exercise_name
+    en = exercise_vocabulary.index(ex_name)
+    packaged_workout["category_exercise_name_" + str(en)] = 1
+
+    packaged_workout["reps_planned"] = reps_planned
+    packaged_workout["reps_completed"] = reps_completed
+    packaged_workout["weight_lbs"] = weight_lbs
+
+    packaged_workout["intraset_heartrate"] = intraset_heartrate
+    packaged_workout["postset_heartrate"] = postset_heartrate
+    packaged_workout["went_to_failure"] = went_to_failure
+
+    packaged_workout["did_pull_muscle"] = did_pull_muscle
+
+    for iii in range(len(pulled_muscle_vocabulary)):
+        packaged_workout["category_pulled_muscle_" + str(iii)] = 0
+    pmni = pulled_muscle_vocabulary.index(
+        pulled_muscle_name)
+    packaged_workout["category_pulled_muscle_" + str(pmni)]
+
+    packaged_workout["used_lifting_gear"] = used_lifting_gear
+
+    packaged_workout["days_since_last_workout"] = unit_days_arr_human[-1]["days_since_last_workout"]
+
+    # pad reps array to a fixed 20 reps
+    # that way you can just include a 20 feature array
+    # then let the flow go unmessed with
+
+    vmpsa = velocities_m_per_s_arr
+    velarr = []
+    if vmpsa != -1:
+        velarr.extend(vmpsa)
+
+        # if the bar sensor missed reps
+        # we pad reps here till we have matching num of
+        # completed reps and velocities
+        # what will happen if you dont do this is the model
+        # will start to predict when the bar sensor misses reps
+        # which we dont want
+
+        reps_completed = reps_completed
+        while len(velarr) < reps_completed:
+            velarr.append(np.mean(vmpsa))
+
+    while len(velarr) < CONFIG.CONFIG_MAX_REPS_PER_SET:
+        velarr.append(0)
+
+    if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
+        assert "too many velocities, bad data?"
+
+    for c in velarr:
+        if c < 0.0:
+            assert "there exists a negative velocity, bad data?"
+
+    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+        packaged_workout["velocities_arr_" + str(iiii)] = velarr[iiii]
+
+    return packaged_workout
+
+
+
+#---------------------------------------------------------->
+
+
 
 print workout_ranges
 
@@ -309,7 +393,6 @@ def make_raw_units():
             if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
                 last_day_vector_workout_day_index = xx
 
-
             #------------------------------------------------------------
 
             # if you modify the setup above make sure it is also modded
@@ -328,106 +411,36 @@ def make_raw_units():
 
                 for ii in range(len(jsonobjects[xx]["workout_vector_arr"])):
 
-                    packaged_workout = {}
+                    exercise_name = jsonobjects[xx]["workout_vector_arr"][ii]["exercise_name"]
+                    reps_planned = jsonobjects[xx]["workout_vector_arr"][ii]["reps_planned"]
+                    reps_completed = jsonobjects[xx]["workout_vector_arr"][ii]["reps_completed"]
+                    weight_lbs = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
+                    intraset_heartrate = jsonobjects[xx]["workout_vector_arr"][ii]["intraset_heartrate"]
+                    postset_heartrate = jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
+                    went_to_failure = jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"]
+                    did_pull_muscle = jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
+                    pulled_muscle_named = jsonobjects[xx]["workout_vector_arr"][ii]["pulled_muscle_name"]
+                    used_lifting_gear = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
+                    vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
 
-                    # use a hot vector for which exercise they r doing
-                    for iii in range(len(exercise_vocabulary)):
-                        packaged_workout["category_exercise_name_"+str(iii)] = 0
-                    ex_name = jsonobjects[xx]["workout_vector_arr"][ii]["exercise_name"]
-                    en = exercise_vocabulary.index(ex_name)
-                    packaged_workout["category_exercise_name_" + str(en)] = 1
-
-                    packaged_workout["reps_planned"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps_planned"]
-                    packaged_workout["reps_completed"] = jsonobjects[xx]["workout_vector_arr"][ii]["reps_completed"]
-                    packaged_workout["weight_lbs"] = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
-
-                    # we will let nn calc rest intervals from
-                    # times from the start of workout
-                    ptap0 = time_vocabulary.index(jsonobjects[xx]["workout_vector_arr"][0]["postset_time_ampm"])
-                    ptap1 = time_vocabulary.index(jsonobjects[xx]["workout_vector_arr"][ii]["postset_time_ampm"])
-                    packaged_workout["rest_interval"] = ptap1-ptap0
-
-                    packaged_workout["intraset_heartrate"] = jsonobjects[xx]["workout_vector_arr"][ii]["intraset_heartrate"]
-                    packaged_workout["postset_heartrate"] = jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
-                    packaged_workout["went_to_failure"] = jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"]
-
-                    packaged_workout["did_pull_muscle"] = jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
-
-                    for iii in range(len(pulled_muscle_vocabulary)):
-                        packaged_workout["category_pulled_muscle_"+str(iii)] = 0
-                    pmni = pulled_muscle_vocabulary.index(
-                        jsonobjects[xx]["workout_vector_arr"][ii]["pulled_muscle_name"])
-                    packaged_workout["category_pulled_muscle_"+str(pmni)]
-
-                    packaged_workout["used_lifting_gear"] = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
-
-
-                    # add another variable for days inbetween workouts------------------------------------------------
-                    # 1 convert mmddyy to timestamp
-                    # 2 do subtraction
-                    # 3 do division to get number of days
-                    # 4 make latest day start at zero then count up backwards
-                    # 5 cap days ago to 4 weeks
-                    # make latest day start at zero, then count up backwards aka
-                    # days ago
-                    # cap days ago to 4 weeks
-                    # no I think you have to add the variable to the workout arr
-                    # the reason is its unclear on what you do for the dayvector
-                    # where a day is not a workout day
-                    # here we get the days since last workout
-                    # the newest starts at 0, then we count up backwards
-
-                    yy = xx
-                    last_workout_day_index = None
-                    while last_workout_day_index is None:
-                        yy = yy - 1
-                        if len(jsonobjects[yy]["workout_vector_arr"]) > 0:
-                            last_workout_day_index = yy
-
-                    current_workout_yyyymmdd = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]
-                    last_workout_yyyymmdd = jsonobjects[last_workout_day_index]["day_vector"]["date_yyyymmdd"]
-
-                    days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd)
-
-                    packaged_workout["days_since_last_workout"] = days_since_last_workout
 
                     #------------------------------------------------------------------------------------------------
 
 
-                    #pad reps array to a fixed 20 reps
-                    #that way you can just include a 20 feature array
-                    #then let the flow go unmessed with
-
-                    vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
-                    velarr = []
-                    if vmpsa != -1:
-                        velarr.extend(vmpsa)
-
-                        #if the bar sensor missed reps
-                        #we pad reps here till we have matching num of
-                        #completed reps and velocities
-                        #what will happen if you dont do this is the model
-                        #will start to predict when the bar sensor misses reps
-                        #which we dont want
-
-                        reps_completed = packaged_workout["reps_completed"]
-                        while len(velarr) < reps_completed:
-                            velarr.append(np.mean(vmpsa))
-
-
-                    while len(velarr) < CONFIG.CONFIG_MAX_REPS_PER_SET:
-                        velarr.append(0)
-
-                    if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
-                        assert "too many velocities, bad data?"
-
-                    for c in velarr:
-                        if c < 0.0:
-                            assert "there exists a negative velocity, bad data?"
-
-                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        packaged_workout["velocities_arr_"+str(iiii)] = velarr[iiii]
-
+                    packaged_workout = make_workout_step_human(
+                        exercise_name,
+                        reps_planned,
+                        reps_completed,
+                        weight_lbs,
+                        intraset_heartrate,
+                        postset_heartrate,
+                        went_to_failure,
+                        did_pull_muscle,
+                        pulled_muscle_named,
+                        used_lifting_gear,
+                        unit_days,
+                        vmpsa
+                    )
                     unit_workouts.append(packaged_workout)
 
 
@@ -488,7 +501,6 @@ def make_raw_units():
                     padx["reps_planned"] = -1
                     padx["reps_completed"] = -1
                     padx["weight_lbs"] = -1
-                    padx["rest_interval"] = -1
                     padx["intraset_heartrate"] = -1
                     padx["postset_heartrate"] = -1
                     padx["went_to_failure"] = 0
@@ -499,7 +511,7 @@ def make_raw_units():
                     padx["days_since_last_workout"] = 0
                     # init the reps speeds to 0
                     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        padx["velocities_arr_" + str(iiii)] = velarr[iiii]
+                        padx["velocities_arr_" + str(iiii)] = 0
 
                     while len(unit_workout_clone_padded) < max_workout_range_array_len:
                         unit_workout_clone_padded.insert(0, padx)
@@ -1243,7 +1255,6 @@ def train_rl_agent():
 
     agent_softmax_choices = results[2][0]
 
-
     oai = np.argmax(agent_softmax_choices)
     abc = None
     print oai
@@ -1254,23 +1265,22 @@ def train_rl_agent():
     human_readable_action = rl_all_possible_actions[oai]
     print human_readable_action
 
-    '''
+
     #now pass the chosen action + state to the env
     state = {}
-    state['workout_series'] = workout_series_batch[0]
-    state['user'] = user_x_batch[0]
-    state['day_series'] = day_series_batch[0]
+    state['dayseriesx'] = day_series_batch_h[0]
+    state['userx'] = user_x_batch_h[0]
+    state['workoutxseries'] = wo_xseries_batch_h[0]
 
     action = human_readable_action
 
     agent_world_take_step(state,action,alw)
-    '''
 
 
 
 
 
-
+#exercise=squat:reps=6:weight=620
 
 def agent_world_take_step(state,action,ai_graph):
 
@@ -1281,14 +1291,13 @@ def agent_world_take_step(state,action,ai_graph):
     # need to parse action and insert it into the liftworld input
     # get the output
 
-    a_workout_series = state['workout_series']
-    a_user_x = state['user']
-    a_day_series = state['day_series']
+    a_day_series = state['dayseriesx']
+    a_user_x = state['userx']
+    a_workout_series = state['workoutxseries']
 
     day_series_batch = [a_workout_series]
     user_x_batch = [a_user_x]
     workout_series_batch = [a_workout_series]
-
     day_series_batch = np.array(day_series_batch)
     user_x_batch = np.array(user_x_batch)
     workout_series_batch = np.array(workout_series_batch)
