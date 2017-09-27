@@ -23,7 +23,7 @@ SOFTWARE.
 '''
 
 
-CONFIG_NUM_EPOCHS = 2
+CONFIG_NUM_EPOCHS = 100
 
 CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/stressmodel"
 
@@ -34,7 +34,7 @@ CONFIG_NN_HUMAN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
 CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Desktop/tmp/normvals"
 
 CONFIG_WORKOUT_LOOKBACK = 1
-CONFIG_BATCH_SIZE = 2
+CONFIG_BATCH_SIZE = 6
 CONFIG_MAX_REPS_PER_SET = 15
 CONFIG_MAX_WEIGHT = 1000
 #assuming they do 25 sets per workout, everyday

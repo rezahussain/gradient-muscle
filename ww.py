@@ -180,8 +180,8 @@ Abc = None
 
 #---------------------------------------------------------->
 
+#weight is in lbs
 choosable_exercises = ["squat","benchpress","deadlift"]
-
 #now we need to make all of the combos the RLAgent can pick
 rl_all_possible_actions = []
 for exercise_name in choosable_exercises:
@@ -245,8 +245,10 @@ def make_workout_step_human(
     for iii in range(len(exercise_vocabulary)):
         packaged_workout["category_exercise_name_" + str(iii)] = 0
     ex_name = exercise_name
-    en = exercise_vocabulary.index(ex_name)
-    packaged_workout["category_exercise_name_" + str(en)] = 1
+
+    if ex_name is not -1:
+        en = exercise_vocabulary.index(ex_name)
+        packaged_workout["category_exercise_name_" + str(en)] = 1
 
     packaged_workout["reps_planned"] = reps_planned
     packaged_workout["reps_completed"] = reps_completed
@@ -260,9 +262,9 @@ def make_workout_step_human(
 
     for iii in range(len(pulled_muscle_vocabulary)):
         packaged_workout["category_pulled_muscle_" + str(iii)] = 0
-    pmni = pulled_muscle_vocabulary.index(
-        pulled_muscle_name)
-    packaged_workout["category_pulled_muscle_" + str(pmni)]
+    if did_pull_muscle:
+        pmni = pulled_muscle_vocabulary.index(pulled_muscle_name)
+        packaged_workout["category_pulled_muscle_" + str(pmni)] = 1
 
     packaged_workout["used_lifting_gear"] = used_lifting_gear
 
@@ -463,11 +465,11 @@ def make_raw_units():
                     # exercise_name categories
                     # reps
                     # weight_lbs
-                    # rest_interval
+                    copyx["reps_completed"] = -1  # reps_completed
                     copyx["intraset_heartrate"] = -1  # intraset_heartrate
                     copyx["postset_heartrate"] = -1  # postset_heartrate
                     copyx["went_to_failure"] = -1  # went to failure
-                    copyx["reps_completed"] = -1 #reps_completed
+                    copyx["did_pull_muscle"] = -1
 
                     for iii in range(len(pulled_muscle_vocabulary)):
                         copyx["category_pulled_muscle_"+str(iii)] = 0
@@ -812,7 +814,7 @@ def normalize_unit(packaged_unit,norm_vals):
 
 
 #LOOKOVER
-def denormalize_workout_series_individual_timestep(n_workout_timestep):
+def denormalize_workout_series_individual_timestep(n_workout_timestep,days_series_arr_h):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
 
@@ -825,14 +827,52 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep):
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
 
-    workout_step = []
-    for ii in range(len(n_workout_timestep)):
-        unnormal =(n_workout_timestep[ii]*(workoutxseriesmax[ii] - workoutxseriesmin[ii])) + workoutxseriesmin[ii]
-        workout_step.append(unnormal)
+    #first make a hollow object
+    exercise_name = -1
+    reps_planned = -1
+    reps_completed = -1
+    weight_lbs = -1
+    intraset_heartrate = -1
+    postset_heartrate = -1
+    went_to_failure = -1
+    did_pull_muscle = -1
+    pulled_muscle_name = -1
+    used_lifting_gear = -1
+    unit_days_arr_human = days_series_arr_h
+    velocities_m_per_s_arr = -1
 
-    return workout_step
+    workoutstep_hollow_h = make_workout_step_human(
+        exercise_name,
+        reps_planned,
+        reps_completed,
+        weight_lbs,
+        intraset_heartrate,
+        postset_heartrate,
+        went_to_failure,
+        did_pull_muscle,
+        pulled_muscle_name,
+        used_lifting_gear,
+        unit_days_arr_human,
+        velocities_m_per_s_arr
+    )
 
-#LOOKOVER
+    h_workout_timestep = {}
+    workoutstepkeys = sorted(list(workoutstep_hollow_h.keys()))
+    for ii in range(len(workoutstepkeys)):
+        akey = workoutstepkeys[ii]
+        aval = n_workout_timestep[ii]
+        amin = workoutxseriesmin[ii]
+        amax = workoutxseriesmax[ii]
+        unnormal = (aval * (amax - amin)) + amin
+        h_workout_timestep[akey] = unnormal
+        ABC = None
+
+    return h_workout_timestep
+
+
+
+#REMOVE THIS ONE I THINK
+'''
 def normalize_workout_series_individual_timestep(human_workout_timestep):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -853,6 +893,7 @@ def normalize_workout_series_individual_timestep(human_workout_timestep):
         machine_workout_timestep[ii] = normalized
 
     return machine_workout_timestep
+'''
 
 
 
@@ -882,7 +923,7 @@ def convert_human_unit_to_machine(h_unit,norm_vals):
 #a_unit = getUnitForName(all_names[0])
 
 class Lift_NN():
-    def __init__(self,a_dayseriesx,a_userx,a_workoutxseries,a_workouty):
+    def __init__(self,a_dayseriesx,a_userx,a_workoutxseries,a_workouty,CHOSEN_BATCH_SIZE):
 
 
         ##--------------------------------------------------------------------------------------------------------------
@@ -922,7 +963,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CONFIG.CONFIG_BATCH_SIZE,500))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,500))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -1060,7 +1101,7 @@ def train_stress_adaptation_model():
     some_workout_series = loaded_unit["workoutxseries"]
     some_workout_y = loaded_unit["workouty"]
     abc = None
-    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y)
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y,CONFIG.CONFIG_BATCH_SIZE)
     init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
     sess = tf.Session()
     sess.run(init_op)
@@ -1207,18 +1248,22 @@ def train_rl_agent():
     some_user_x = loaded_unit["userx"]
     some_workout_series = loaded_unit["workoutxseries"]
     some_workout_y = loaded_unit["workouty"]
-    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y)
+    RL_BATCH_SIZE = 1
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y,RL_BATCH_SIZE)
+
+
 
     init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
     sess = tf.Session()
     sess.run(init_op)
+    alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
     #so lets use each of these real datatpoints as a starting point
     #and let the model progress from there for a fixed number of steps?
     shuffle(all_names)
 
     starting_point_name = []
-    starting_point_name.append(all_names[0])
+    starting_point_name.append(all_names[5])
 
     wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(starting_point_name,1,for_human=True)
     print wo_y_batch_h.shape
@@ -1274,7 +1319,7 @@ def train_rl_agent():
 
     action = human_readable_action
 
-    agent_world_take_step(state,action,alw)
+    agent_world_take_step(state,action,alw,sess)
 
 
 
@@ -1282,7 +1327,7 @@ def train_rl_agent():
 
 #exercise=squat:reps=6:weight=620
 
-def agent_world_take_step(state,action,ai_graph):
+def agent_world_take_step(state,action,ai_graph,sess):
 
     # run through the lift world
     # make a new state
@@ -1291,16 +1336,9 @@ def agent_world_take_step(state,action,ai_graph):
     # need to parse action and insert it into the liftworld input
     # get the output
 
-    a_day_series = state['dayseriesx']
-    a_user_x = state['userx']
-    a_workout_series = state['workoutxseries']
-
-    day_series_batch = [a_workout_series]
-    user_x_batch = [a_user_x]
-    workout_series_batch = [a_workout_series]
-    day_series_batch = np.array(day_series_batch)
-    user_x_batch = np.array(user_x_batch)
-    workout_series_batch = np.array(workout_series_batch)
+    a_day_series_h = state['dayseriesx']
+    a_user_x_h = state['userx']
+    a_workout_series_h = state['workoutxseries']
 
     #----------------------------------------------------------
 
@@ -1308,35 +1346,108 @@ def agent_world_take_step(state,action,ai_graph):
 
     action_exercise_name_human = (action.split(":")[0]).split("=")[1]
     action_planned_reps_human = (action.split(":")[1]).split("=")[1]
-    action_weight_human = (action.split(":")[2]).split("=")[1]
+    action_weight_lbs_human = (action.split(":")[2]).split("=")[1]
 
     # we will let nn calc rest intervals from
     # times from the start of workout
 
-    rest_interval_human = None
-    if len(a_workout_series)>0:
-        ptap0 = time_vocabulary.index(a_workout_series[0]["postset_time_ampm"])
-        ptap1 = time_vocabulary.index(a_workout_series[len(a_workout_series)-1]["postset_time_ampm"])
-        rest_interval_human = ptap1-ptap0
-    else:
-        rest_interval_human = 0
+    exercise_name = action_exercise_name_human
+    reps_planned = action_planned_reps_human
+    reps_completed = -1
+    weight_lbs = action_weight_lbs_human
+    intraset_heartrate = -1
+    postset_heartrate = -1
+    went_to_failure = -1
+    did_pull_muscle = -1
+    pulled_muscle_name = -1
+    used_lifting_gear = -1
+    unit_days_arr_human = a_day_series_h
+    velocities_m_per_s_arr = -1
 
 
-    new_workout_vector_timestep = [None*(11)]
+    workoutstep_for_predict_h = make_workout_step_human(
+        action_exercise_name_human,
+        action_planned_reps_human,
+        reps_completed,
+        weight_lbs,
+        intraset_heartrate,
+        postset_heartrate,
+        went_to_failure,
+        did_pull_muscle,
+        pulled_muscle_name,
+        used_lifting_gear,
+        unit_days_arr_human,
+        velocities_m_per_s_arr
+    )
 
-    en = exercise_vocabulary.index(action_exercise_name_human)
-    new_workout_vector_timestep[0] = en                         # exercise vocab index
-    new_workout_vector_timestep[1] = action_planned_reps_human  # reps
-    new_workout_vector_timestep[2] = action_weight_human        # weight_lbs
-    new_workout_vector_timestep[3] = rest_interval_human        # rest_interval
+    #a_workout_series.append(workoutstep_for_predict_h)
+    #np array so u cant use append like above
+    np.append(a_workout_series_h,workoutstep_for_predict_h)
 
-    new_workout_vector_timestep[4] = -1  # intraset_heartrate
-    new_workout_vector_timestep[5] = -1  # postset_heartrate
-    new_workout_vector_timestep[6] = -1  # went to failure
-    new_workout_vector_timestep[7] = -1  # did_pull_muscle
-    new_workout_vector_timestep[8] = -1  # pulled_muscle_vocab_index
-    new_workout_vector_timestep[9] = -1  # used_lifting_gear
+    #----------------------------------------------------------
 
+    #still need to pad and trim to max lengths
+    #ez to do, just remove 1 from the back if you are appending 1
+    np.delete(a_workout_series_h,0)
+
+    #----------------------------------------------------------
+    #convert state to machine format
+
+    state_h = {}
+    state_h['dayseriesx'] = a_day_series_h
+    state_h['userx'] = a_user_x_h
+    state_h['workoutxseries'] = a_workout_series_h
+    state_h['workouty'] = {}
+
+    norm_vals = get_norm_values()
+    state_m = convert_human_unit_to_machine(state_h, norm_vals)
+
+    day_series_batch = [state_m["dayseriesx"]]
+    user_x_batch = [state_m["userx"]]
+    workout_series_batch = [state_m["workoutxseries"]]
+
+    day_series_batch = np.array(day_series_batch)
+    user_x_batch = np.array(user_x_batch)
+    workout_series_batch = np.array(workout_series_batch)
+
+    #---------------------------------------------------------
+    #put through graph
+    alw = ai_graph
+
+    #print workout_y_batch.shape
+    #print workout_series_batch.shape
+    #print user_x_batch.shape
+    # print day_series_batch.shape
+
+
+
+    results_of_action = sess.run([
+        alw.world_day_series_input,
+        alw.world_workout_series_input,
+        alw.world_y
+    ],
+
+    feed_dict={
+        alw.world_day_series_input: day_series_batch,
+        alw.world_workout_series_input: workout_series_batch,
+        alw.world_user_vector_input: user_x_batch
+    })
+
+
+    m_filled_workout_step = results_of_action[2][0]
+
+
+    h_filled_workout_step = denormalize_workout_series_individual_timestep(m_filled_workout_step,a_day_series_h)
+
+    # print m_filled_workout_step
+    # print "trainExtern: " + str(train_error)
+
+    ABC = None
+
+    #----------------------------------------------------------
+
+
+    '''
     #take the value from the last day vector timestep
     #then in environment steps when you advance the day you need to make sure
     #that you make it correctly
@@ -1361,7 +1472,7 @@ def agent_world_take_step(state,action,ai_graph):
 
     machine_workout_vector_timestep = normalize_workout_series_individual_timestep(new_workout_vector_timestep)
     #so now normalize the new workout step and add it to the state
-
+    '''
 
 
 
@@ -1402,12 +1513,12 @@ def agent_world_take_step(state,action,ai_graph):
 
 
 
-    print state,action
+    #print state,action
 
 
 
-train_stress_adaptation_model()
-#train_rl_agent()
+#train_stress_adaptation_model()
+train_rl_agent()
 #trainRLAgent()
 #trainStressAdaptationModel()
 
