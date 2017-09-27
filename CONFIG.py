@@ -23,7 +23,7 @@ SOFTWARE.
 '''
 
 
-CONFIG_NUM_EPOCHS = 100
+CONFIG_NUM_EPOCHS = 50
 
 CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/stressmodel"
 
@@ -33,11 +33,11 @@ CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradien
 CONFIG_NN_HUMAN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
 CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Desktop/tmp/normvals"
 
-CONFIG_WORKOUT_LOOKBACK = 1
+CONFIG_WORKOUT_LOOKBACK = 2
 CONFIG_BATCH_SIZE = 6
 CONFIG_MAX_REPS_PER_SET = 15
-CONFIG_MAX_WEIGHT = 1000
+CONFIG_MAX_WEIGHT = 200
 #assuming they do 25 sets per workout, everyday
 #its 40 days before there are 1000 sets
 #and after 1000 timesteps the LSTM doesnt really remember further
-CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP = 7*6
+CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP = 14

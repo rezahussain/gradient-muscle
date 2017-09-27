@@ -174,6 +174,9 @@ for r in workout_ranges:
     if rdays > max_day_range_array_len:
         max_day_range_array_len = rdays
 
+#dk if this is a hack
+#bc it says 10 but then 11 shows up in the dataset
+max_day_range_array_len += 1
 
 Abc = None
 
@@ -262,7 +265,7 @@ def make_workout_step_human(
 
     for iii in range(len(pulled_muscle_vocabulary)):
         packaged_workout["category_pulled_muscle_" + str(iii)] = 0
-    if did_pull_muscle:
+    if did_pull_muscle == 1:
         pmni = pulled_muscle_vocabulary.index(pulled_muscle_name)
         packaged_workout["category_pulled_muscle_" + str(pmni)] = 1
 
@@ -558,6 +561,9 @@ def make_raw_units():
                         unit_days_padded.insert(0, packaged_day_padded)
 
 
+                    ABC=len(unit_days_padded)
+                    DEF=None
+
                     #---------------------------------------------------------------------
 
 
@@ -813,7 +819,6 @@ def normalize_unit(packaged_unit,norm_vals):
     return n_packaged_unit
 
 
-#LOOKOVER
 def denormalize_workout_series_individual_timestep(n_workout_timestep,days_series_arr_h):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -871,32 +876,6 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep,days_serie
 
 
 
-#REMOVE THIS ONE I THINK
-'''
-def normalize_workout_series_individual_timestep(human_workout_timestep):
-
-    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
-
-    dayseriesxmin = norm_vals["dayseriesxmin"]
-    dayseriesxmax = norm_vals["daysseriesxmax"]
-    userxmin = norm_vals["userxmin"]
-    userxmax = norm_vals["userxmax"]
-    workoutxseriesmin = norm_vals["workoutxseriesmin"]
-    workoutxseriesmax = norm_vals["workoutxseriesmax"]
-    workoutymin = norm_vals["workoutymin"]
-    workoutymax = norm_vals["workoutymax"]
-
-    machine_workout_timestep = human_workout_timestep[:]
-
-    for ii in range(len(human_workout_timestep)):
-        normalized = (human_workout_timestep[ii] - workoutxseriesmin[ii])/(workoutxseriesmax[ii]-workoutxseriesmin[ii])
-        machine_workout_timestep[ii] = normalized
-
-    return machine_workout_timestep
-'''
-
-
-
 
 
 def get_unit_names():
@@ -942,13 +921,31 @@ class Lift_NN():
         self.world_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="world_user_vector_input")
         self.world_workout_y = tf.placeholder(tf.float32, (None, len(a_workouty)), name="world_workouty")
 
-        with tf.variable_scope('world_workout_series_stage'):
-            world_cellA = tf.contrib.rnn.LSTMCell(250)
+        with tf.variable_scope('workout_input'):
+            world_cellA = tf.contrib.rnn.NASCell(100)
             world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
 
-        with tf.variable_scope('world_day_series_stage'):
-            world_cellAA = tf.contrib.rnn.LSTMCell(250)
+        with tf.variable_scope('day_input'):
+            world_cellAA = tf.contrib.rnn.NASCell(100)
+            world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
+
+        '''
+        with tf.variable_scope('world_workout_series_stageA'):
+            world_cellA = tf.contrib.rnn.LSTMCell(1000)
+            world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
+
+        with tf.variable_scope('world_workout_series_stageB'):
+            world_cellB = tf.contrib.rnn.LSTMCell(1000)
+            world_rnn_outputsB, world_rnn_stateB = tf.nn.dynamic_rnn(world_cellB, world_rnn_outputsA, dtype=tf.float32)
+
+        with tf.variable_scope('world_day_series_stageA'):
+            world_cellAA = tf.contrib.rnn.LSTMCell(1000)
             world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA, self.world_day_series_input, dtype=tf.float32)
+
+        with tf.variable_scope('world_day_series_stageB'):
+            world_cellBB = tf.contrib.rnn.LSTMCell(1000)
+            world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
+        '''
 
         world_lastA = world_rnn_outputsA[:, -1:]  # get last lstm output
         world_lastAA = world_rnn_outputsAA[:, -1:]  # get last lstm output
@@ -963,7 +960,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,500))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,200))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -1256,7 +1253,11 @@ def train_rl_agent():
     init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
     sess = tf.Session()
     sess.run(init_op)
-    alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+
+    #saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
+    alw.asaver.restore(sess, tf.train.latest_checkpoint('/Users/admin/Desktop/tmp/'))
+
+    #alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
     #so lets use each of these real datatpoints as a starting point
     #and let the model progress from there for a fixed number of steps?
@@ -1517,8 +1518,8 @@ def agent_world_take_step(state,action,ai_graph,sess):
 
 
 
-#train_stress_adaptation_model()
-train_rl_agent()
+train_stress_adaptation_model()
+#train_rl_agent()
 #trainRLAgent()
 #trainStressAdaptationModel()
 
