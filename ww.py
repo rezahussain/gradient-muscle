@@ -1617,6 +1617,7 @@ def agent_world_take_step(state,action,ai_graph,sess):
         alw.world_workout_series_input,
         alw.world_y,
         
+        
         # alw.world_operation,
         alw.world_e,
         alw.world_workout_y,
