@@ -232,11 +232,11 @@ def make_workout_step_human(
         reps_planned,
         reps_completed,
         weight_lbs,
-        intraset_heartrate,
+
         postset_heartrate,
         went_to_failure,
         did_pull_muscle,
-        pulled_muscle_name,
+
         used_lifting_gear,
         unit_days_arr_human,
         velocities_m_per_s_arr
@@ -257,17 +257,12 @@ def make_workout_step_human(
     packaged_workout["reps_completed"] = reps_completed
     packaged_workout["weight_lbs"] = weight_lbs
 
-    packaged_workout["intraset_heartrate"] = intraset_heartrate
+
     packaged_workout["postset_heartrate"] = postset_heartrate
     packaged_workout["went_to_failure"] = went_to_failure
 
     packaged_workout["did_pull_muscle"] = did_pull_muscle
 
-    for iii in range(len(pulled_muscle_vocabulary)):
-        packaged_workout["category_pulled_muscle_" + str(iii)] = 0
-    if did_pull_muscle == 1:
-        pmni = pulled_muscle_vocabulary.index(pulled_muscle_name)
-        packaged_workout["category_pulled_muscle_" + str(pmni)] = 1
 
     packaged_workout["used_lifting_gear"] = used_lifting_gear
 
@@ -420,16 +415,16 @@ def make_raw_units():
                     reps_planned = jsonobjects[xx]["workout_vector_arr"][ii]["reps_planned"]
                     reps_completed = jsonobjects[xx]["workout_vector_arr"][ii]["reps_completed"]
                     weight_lbs = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
-                    intraset_heartrate = jsonobjects[xx]["workout_vector_arr"][ii]["intraset_heartrate"]
+
                     postset_heartrate = jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
                     went_to_failure = jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"]
                     did_pull_muscle = jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
-                    pulled_muscle_named = jsonobjects[xx]["workout_vector_arr"][ii]["pulled_muscle_name"]
+
                     used_lifting_gear = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
                     vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
 
 
-                    #------------------------------------------------------------------------------------------------
+                    #------------------------------------------------------------------------
 
 
                     packaged_workout = make_workout_step_human(
@@ -437,11 +432,9 @@ def make_raw_units():
                         reps_planned,
                         reps_completed,
                         weight_lbs,
-                        intraset_heartrate,
                         postset_heartrate,
                         went_to_failure,
                         did_pull_muscle,
-                        pulled_muscle_named,
                         used_lifting_gear,
                         unit_days,
                         vmpsa
@@ -469,13 +462,13 @@ def make_raw_units():
                     # reps
                     # weight_lbs
                     copyx["reps_completed"] = -1  # reps_completed
-                    copyx["intraset_heartrate"] = -1  # intraset_heartrate
+
                     copyx["postset_heartrate"] = -1  # postset_heartrate
                     copyx["went_to_failure"] = -1  # went to failure
                     copyx["did_pull_muscle"] = -1
 
-                    for iii in range(len(pulled_muscle_vocabulary)):
-                        copyx["category_pulled_muscle_"+str(iii)] = 0
+                    #for iii in range(len(pulled_muscle_vocabulary)):
+                    #    copyx["category_pulled_muscle_"+str(iii)] = 0
 
                     # used_lifting_gear
                     # dayssincelastworkout
@@ -506,12 +499,11 @@ def make_raw_units():
                     padx["reps_planned"] = -1
                     padx["reps_completed"] = -1
                     padx["weight_lbs"] = -1
-                    padx["intraset_heartrate"] = -1
+
                     padx["postset_heartrate"] = -1
                     padx["went_to_failure"] = 0
                     padx["did_pull_muscle"] = 0
-                    for iii in range(len(pulled_muscle_vocabulary)):
-                        padx["category_pulled_muscle_" + str(iii)] = 0
+
                     padx["used_lifting_gear"] = 0
                     padx["days_since_last_workout"] = 0
                     # init the reps speeds to 0
@@ -573,10 +565,11 @@ def make_raw_units():
 
 
 
+
                     has_heartrate = True
                     if (
-                        copyy["postset_heartrate"]==-1 and
-                        copyy["intraset_heartrate"]==-1
+                        copyy["postset_heartrate"]==-1
+
                     ):
                         has_heartrate = False
 
@@ -594,13 +587,23 @@ def make_raw_units():
                         #UPDATE: model gets horrible with either
                         #need to use both or one or the other
 
-
                         #not sure how I feel about using either
                         #instead of and
                         #but some lifters will not record hr
                         #might have to branch model out
                         #but training it together gives it a better
                         #understanding even with partial data
+
+
+                    copyyy = {}
+                    copyyy["reps_completed"] = copyy["reps_completed"]
+                    copyyy["postset_heartrate"] = copyy["postset_heartrate"]
+                    copyyy["went_to_failure"] = copyy["went_to_failure"]
+                    copyyy["did_pull_muscle"] = copyy["did_pull_muscle"]
+                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                        copyyy["velocities_arr_" + str(iiii)] = copyy["velocities_arr_" + str(iiii)]
+
+                    ABC = None
 
 
                     userjson = jsonobjects[xx]["user_vector"]
@@ -615,7 +618,7 @@ def make_raw_units():
 
                     #this is what we r gonna package for the NN
                     workoutxseries = unit_workout_clone_padded[:]
-                    workouty = copy.deepcopy(copyy)
+                    workouty = copy.deepcopy(copyyy)
                     dayseries = unit_days_padded[:]
                     userx = userx
 
@@ -677,7 +680,7 @@ def write_norm_values():
                     dayseriesxmax[ii] = aval
 
         unpickleduserx = unpickled_package["userx"]
-        userxkeys = sorted(unpickleduserx.keys())
+        userxkeys = sorted(list(unpickleduserx.keys()))
         for i in range(len(userxkeys)):
             akey = userxkeys[i]
             aval = float(unpickleduserx[akey])
@@ -689,7 +692,6 @@ def write_norm_values():
         unpickledworkoutxseries = unpickled_package["workoutxseries"]
         for i in range(len(unpickledworkoutxseries)):
             workoutstep = unpickledworkoutxseries[i]
-
             workoutstepkeys = sorted(list(workoutstep.keys()))
             for ii in range(len(workoutstepkeys)):
                 akey = workoutstepkeys[ii]
@@ -819,6 +821,78 @@ def normalize_unit(packaged_unit,norm_vals):
     return n_packaged_unit
 
 
+def make_h_workout_with_xh_ym(workoutstep_xh,workoutstep_ym,days_series_arr_h):
+
+    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+
+    dayseriesxmin = norm_vals["dayseriesxmin"]
+    dayseriesxmax = norm_vals["daysseriesxmax"]
+    userxmin = norm_vals["userxmin"]
+    userxmax = norm_vals["userxmax"]
+    workoutxseriesmin = norm_vals["workoutxseriesmin"]
+    workoutxseriesmax = norm_vals["workoutxseriesmax"]
+    workoutymin = norm_vals["workoutymin"]
+    workoutymax = norm_vals["workoutymax"]
+
+
+    workoutstep_hollow_h = copy.deepcopy(workoutstep_xh)
+
+    '''
+    #first make a hollow object
+    exercise_name = workoutstep_xh["exercise_name"]
+    reps_planned = workoutstep_xh["reps_planned"]
+    reps_completed = -1
+    weight_lbs = workoutstep_xh["weight_lbs"]
+    
+    postset_heartrate = -1
+    went_to_failure = -1
+    did_pull_muscle = -1
+    
+    used_lifting_gear = workoutstep_xh["used_lifting_gear"]
+    unit_days_arr_human = days_series_arr_h
+    velocities_m_per_s_arr = -1
+
+    workoutstep_hollow_h = make_workout_step_human(
+        exercise_name,
+        reps_planned,
+        reps_completed,
+        weight_lbs,
+        
+        postset_heartrate,
+        went_to_failure,
+        did_pull_muscle,
+        
+        used_lifting_gear,
+        unit_days_arr_human,
+        velocities_m_per_s_arr
+    )
+    '''
+
+
+
+    h_workout_timestep = workoutstep_hollow_h
+
+    ykeys = ["reps_completed","postset_heartrate","went_to_failure","did_pull_muscle"]
+    # init the reps speeds to 0
+    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+        ykeys.append("velocities_arr_" + str(iiii))
+    workoutstepkeys = sorted(list(ykeys))
+
+    for ii in range(len(workoutstepkeys)):
+        akey = workoutstepkeys[ii]
+        aval = workoutstep_ym[ii]
+        amin = workoutymin[ii]
+        amax = workoutymax[ii]
+        unnormal = (aval * (amax - amin)) + amin
+        h_workout_timestep[akey] = unnormal
+        ABC = None
+
+
+
+
+    return h_workout_timestep
+
+
 def denormalize_workout_series_individual_timestep(n_workout_timestep,days_series_arr_h):
 
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -837,11 +911,11 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep,days_serie
     reps_planned = -1
     reps_completed = -1
     weight_lbs = -1
-    intraset_heartrate = -1
+
     postset_heartrate = -1
     went_to_failure = -1
     did_pull_muscle = -1
-    pulled_muscle_name = -1
+
     used_lifting_gear = -1
     unit_days_arr_human = days_series_arr_h
     velocities_m_per_s_arr = -1
@@ -851,11 +925,11 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep,days_serie
         reps_planned,
         reps_completed,
         weight_lbs,
-        intraset_heartrate,
+
         postset_heartrate,
         went_to_failure,
         did_pull_muscle,
-        pulled_muscle_name,
+
         used_lifting_gear,
         unit_days_arr_human,
         velocities_m_per_s_arr
@@ -921,13 +995,30 @@ class Lift_NN():
         self.world_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="world_user_vector_input")
         self.world_workout_y = tf.placeholder(tf.float32, (None, len(a_workouty)), name="world_workouty")
 
+
+
+        with tf.variable_scope('world_workout_series_stageA'):
+            world_cellA = tf.contrib.rnn.LSTMCell(34)
+            resAA = tf.contrib.rnn.ResidualWrapper(world_cellA)
+            world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(resAA, self.world_workout_series_input,
+                                                                     dtype=tf.float32)
+
+        with tf.variable_scope('world_day_series_stageA'):
+            world_cellAA = tf.contrib.rnn.LSTMCell(23)
+            resAAA = tf.contrib.rnn.ResidualWrapper(world_cellAA)
+            world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(resAAA, self.world_day_series_input,
+                                                                       dtype=tf.float32)
+
+        '''
         with tf.variable_scope('workout_input'):
-            world_cellA = tf.contrib.rnn.NASCell(100)
+            world_cellA = tf.contrib.rnn.NASCell(50)
             world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
 
         with tf.variable_scope('day_input'):
-            world_cellAA = tf.contrib.rnn.NASCell(100)
+            world_cellAA = tf.contrib.rnn.NASCell(50)
             world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
+
+        '''
 
         '''
         with tf.variable_scope('world_workout_series_stageA'):
@@ -960,7 +1051,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,200))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,34+23))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -1356,11 +1447,11 @@ def agent_world_take_step(state,action,ai_graph,sess):
     reps_planned = action_planned_reps_human
     reps_completed = -1
     weight_lbs = action_weight_lbs_human
-    intraset_heartrate = -1
+
     postset_heartrate = -1
     went_to_failure = -1
     did_pull_muscle = -1
-    pulled_muscle_name = -1
+
     used_lifting_gear = -1
     unit_days_arr_human = a_day_series_h
     velocities_m_per_s_arr = -1
@@ -1371,11 +1462,11 @@ def agent_world_take_step(state,action,ai_graph,sess):
         action_planned_reps_human,
         reps_completed,
         weight_lbs,
-        intraset_heartrate,
+
         postset_heartrate,
         went_to_failure,
         did_pull_muscle,
-        pulled_muscle_name,
+
         used_lifting_gear,
         unit_days_arr_human,
         velocities_m_per_s_arr
@@ -1438,7 +1529,12 @@ def agent_world_take_step(state,action,ai_graph,sess):
     m_filled_workout_step = results_of_action[2][0]
 
 
-    h_filled_workout_step = denormalize_workout_series_individual_timestep(m_filled_workout_step,a_day_series_h)
+    #h_workout_step_missing_pieces =
+    #def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h):
+
+    h_filled_workout_step = make_h_workout_with_xh_ym(workoutstep_for_predict_h,m_filled_workout_step,a_day_series_h)
+
+    #h_filled_workout_step = denormalize_workout_series_individual_timestep(m_filled_workout_step,a_day_series_h)
 
     # print m_filled_workout_step
     # print "trainExtern: " + str(train_error)
@@ -1518,8 +1614,8 @@ def agent_world_take_step(state,action,ai_graph,sess):
 
 
 
-train_stress_adaptation_model()
-#train_rl_agent()
+#train_stress_adaptation_model()
+train_rl_agent()
 #trainRLAgent()
 #trainStressAdaptationModel()
 

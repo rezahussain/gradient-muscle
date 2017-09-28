@@ -23,7 +23,7 @@ SOFTWARE.
 '''
 
 
-CONFIG_NUM_EPOCHS = 50
+CONFIG_NUM_EPOCHS = 20000000
 
 CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/stressmodel"
 
