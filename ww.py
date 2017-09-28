@@ -998,29 +998,29 @@ class Lift_NN():
 
 
         with tf.variable_scope('world_workout_series_stageA'):
-            world_wo_cellA = tf.contrib.rnn.LSTMCell(50)
+            world_wo_cellA = tf.contrib.rnn.LSTMCell(100)
             world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA, self.world_workout_series_input,
                                                                          dtype=tf.float32)
             world_wo_batchA = tf.layers.batch_normalization(world_wo_rnn_outputsA)
 
         with tf.variable_scope('world_workout_series_stageB'):
-            world_wo_cellB = tf.contrib.rnn.LSTMCell(50)
+            world_wo_cellB = tf.contrib.rnn.LSTMCell(100)
             world_wo_resB = tf.contrib.rnn.ResidualWrapper(world_wo_cellB)
-            world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_batchA,
+            world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_rnn_outputsA,
                                                                      dtype=tf.float32)
             world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
 
 
         with tf.variable_scope('world_day_series_stageA'):
-            world_day_cellA = tf.contrib.rnn.LSTMCell(50)
+            world_day_cellA = tf.contrib.rnn.LSTMCell(100)
             world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA, self.world_day_series_input,
                                                                        dtype=tf.float32)
             world_day_batchA = tf.layers.batch_normalization(world_day_rnn_outputsA)
 
         with tf.variable_scope('world_day_series_stageB'):
-            world_day_cellB = tf.contrib.rnn.LSTMCell(50)
+            world_day_cellB = tf.contrib.rnn.LSTMCell(100)
             world_day_resB = tf.contrib.rnn.ResidualWrapper(world_day_cellB)
-            world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_batchA,
+            world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_rnn_outputsA,
                                                                        dtype=tf.float32)
             world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
 
@@ -1053,8 +1053,8 @@ class Lift_NN():
             world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
         '''
 
-        world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
-        world_lastAA = world_day_rnn_outputsA[:, -1:]  # get last lstm output
+        world_lastA = world_wo_rnn_outputsB[:, -1:]  # get last lstm output
+        world_lastAA = world_day_rnn_outputsB[:, -1:]  # get last lstm output
 
         #world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
         #world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
@@ -1073,7 +1073,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,50+50))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,100+100))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -1616,6 +1616,7 @@ def agent_world_take_step(state,action,ai_graph,sess):
         alw.world_day_series_input,
         alw.world_workout_series_input,
         alw.world_y,
+        
         # alw.world_operation,
         alw.world_e,
         alw.world_workout_y,
