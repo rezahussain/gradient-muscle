@@ -998,16 +998,31 @@ class Lift_NN():
 
 
         with tf.variable_scope('world_workout_series_stageA'):
-            world_cellA = tf.contrib.rnn.LSTMCell(34)
-            resAA = tf.contrib.rnn.ResidualWrapper(world_cellA)
-            world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(resAA, self.world_workout_series_input,
+            world_wo_cellA = tf.contrib.rnn.LSTMCell(50)
+            world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA, self.world_workout_series_input,
+                                                                         dtype=tf.float32)
+            world_wo_batchA = tf.layers.batch_normalization(world_wo_rnn_outputsA)
+
+        with tf.variable_scope('world_workout_series_stageB'):
+            world_wo_cellB = tf.contrib.rnn.LSTMCell(50)
+            world_wo_resB = tf.contrib.rnn.ResidualWrapper(world_wo_cellB)
+            world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_batchA,
                                                                      dtype=tf.float32)
+            world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
+
 
         with tf.variable_scope('world_day_series_stageA'):
-            world_cellAA = tf.contrib.rnn.LSTMCell(23)
-            resAAA = tf.contrib.rnn.ResidualWrapper(world_cellAA)
-            world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(resAAA, self.world_day_series_input,
+            world_day_cellA = tf.contrib.rnn.LSTMCell(50)
+            world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA, self.world_day_series_input,
                                                                        dtype=tf.float32)
+            world_day_batchA = tf.layers.batch_normalization(world_day_rnn_outputsA)
+
+        with tf.variable_scope('world_day_series_stageB'):
+            world_day_cellB = tf.contrib.rnn.LSTMCell(50)
+            world_day_resB = tf.contrib.rnn.ResidualWrapper(world_day_cellB)
+            world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_batchA,
+                                                                       dtype=tf.float32)
+            world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
 
         '''
         with tf.variable_scope('workout_input'):
@@ -1038,8 +1053,15 @@ class Lift_NN():
             world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
         '''
 
-        world_lastA = world_rnn_outputsA[:, -1:]  # get last lstm output
-        world_lastAA = world_rnn_outputsAA[:, -1:]  # get last lstm output
+        world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
+        world_lastAA = world_day_rnn_outputsA[:, -1:]  # get last lstm output
+
+        #world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
+        #world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
+
+
+        #world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
+        #world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
 
         self.world_lastA = world_lastA
         self.world_lastAA = world_lastAA
@@ -1051,7 +1073,7 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,34+23))
+        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,50+50))
         self.world_afshape = tf.shape(self.world_combined_shaped)
         #tf.set_shape()
 
@@ -1200,6 +1222,8 @@ def train_stress_adaptation_model():
     train_names = all_names[:split_index]
     valid_names = all_names[split_index:]
 
+    best_error = 9999
+
     for _ in range(0, CONFIG.CONFIG_NUM_EPOCHS):
 
         train_names_copy = train_names[:]
@@ -1209,6 +1233,7 @@ def train_stress_adaptation_model():
 
         train_error = 0.0
         valid_error = 0.0
+
 
         while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
 
@@ -1316,11 +1341,20 @@ def train_stress_adaptation_model():
 
         train_error /= float(len(train_names))
         valid_error /= float(len(valid_names))
-        print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error)
+        print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error) + "best_err: "+str(best_error)
 
-        if train_error > valid_error:
+        #have to use this until you have enough samples
+        #cuz atm 54 samples is not enough to generalize
+        #and you need low low error
+
+        if train_error<best_error:
+            best_error = train_error
             print "model saved"
-            alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+            alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+
+        #if train_error > valid_error:
+        #    print "model saved"
+        #    alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
     sess.close()
 
@@ -1614,10 +1648,8 @@ def agent_world_take_step(state,action,ai_graph,sess):
 
 
 
-#train_stress_adaptation_model()
-train_rl_agent()
-#trainRLAgent()
-#trainStressAdaptationModel()
+train_stress_adaptation_model()
+#train_rl_agent()
 
 
 
@@ -1625,38 +1657,4 @@ train_rl_agent()
 
 
 
-
-    #later unpickle and normalize
-    #then train
-
-
-
-
-
-#so now we make a labeled dataset
-        #that is for each workout
-        #we make an output for each suggested set and
-        #what happened after
-        #so
-        #--current situation
-        #--velocities_m_per_s bottomhalf,tophalf
-        #--did pull muscle classification
-        #--went to failure classification
-        #each workout also needs to calc days since workout
-
-        #this time keep them labeled until normalization
-        #and combination?
-
-#workoutarray (num_workouts,workout,set_features)
-    #workout array has an array of velocities
-    #so we are going to condense it down to two features
-    #an average of the top half, and an average of the bottom half
-    #that way we can pass it in knowing the shape
-    #which tensorflow needs
-    #want to calculate the max force of both of those too
-        #have to convert lb to kg? yes
-
-#dayarray
-
-#user_vector
 
