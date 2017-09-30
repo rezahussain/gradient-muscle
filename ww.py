@@ -184,10 +184,10 @@ Abc = None
 #---------------------------------------------------------->
 
 #weight is in lbs
-choosable_exercises = ["squat","benchpress","deadlift"]
+CHOOSABLE_EXERCISES = ["squat","benchpress","deadlift"]
 #now we need to make all of the combos the RLAgent can pick
 rl_all_possible_actions = []
-for exercise_name in choosable_exercises:
+for exercise_name in CHOOSABLE_EXERCISES:
     exercise_index = exercise_vocabulary.index(exercise_name)
     for x in range(1,CONFIG.CONFIG_MAX_REPS_PER_SET+1):
         for y in range(45,CONFIG.CONFIG_MAX_WEIGHT,5):
@@ -1397,18 +1397,19 @@ def train_rl_agent():
             state["userx"] = user_x_batch_h[0]
             state["workoutxseries"] = wo_xseries_batch_h[0]
 
-            #start reward calculation from our rl agent actions
-            #not bootstrapped actions
-            state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
 
+            #state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
 
+            state["lastrewarddetectedindexes"] = {}
+            for exercise_name in CHOOSABLE_EXERCISES:
+                state["lastrewarddetectedindexes"][exercise_name] = None
 
         else:
             h_unit["dayseriesx"] = state["dayseriesx"]
             h_unit["userx"] = state["userx"]
             h_unit["workoutxseries"] = state["workoutxseries"]
             h_unit["workouty"] = {}
-            h_unit["lastrewarddetectedindex"] = state['lastrewarddetectedindex']
+            h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
 
         m_unit = convert_human_unit_to_machine(h_unit,norm_vals)
 
@@ -1434,23 +1435,27 @@ def train_rl_agent():
 
 
 
+        #now just use the index of the highest softmax value to lookup the action
+        #rl_all_possible_actions
+
         oai = np.argmax(agent_softmax_choices)
-        rai = np.random.choice(agent_softmax_choices)
-        aai = None
-        percent_done = 0.50
+        oai_human_readable_action = rl_all_possible_actions[oai]
+        rai_human_readable_action = np.random.choice(rl_all_possible_actions)
+        human_readable_action = None
+
+
+        percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
         do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
         # do_random_action = np.random.choice([True, False], p=a_dist)
         if do_random_action:
-            aai = int(rai)
+            human_readable_action = rai_human_readable_action
         else:
-            aai = int(oai)
+            human_readable_action = oai_human_readable_action
 
 
-        #now just use the index of the highest softmax value to lookup the action
-        #rl_all_possible_actions
-        human_readable_action = rl_all_possible_actions[aai]
+        #human_readable_action = rl_all_possible_actions[aai]
         print human_readable_action
 
         # now pass the chosen action + state to the env
@@ -1588,7 +1593,7 @@ def agent_world_take_step(state,action,ai_graph,sess):
     state_h['userx'] = a_user_x_h
     state_h['workoutxseries'] = a_workout_series_h
     state_h['workouty'] = {}
-    state_h["lastrewarddetectedindex"] = state["lastrewarddetectedindex"]
+    state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
 
     #print a_workout_series_h[-1]
 
@@ -1612,86 +1617,102 @@ def agent_world_take_step(state,action,ai_graph,sess):
     # discounted return doesnt provide the rl agent much info on what
     # it did well if you just calculate the reward at the end
 
-    # have to do this bc the timeseries length is a fixed moving window
-    # so when we move the window we need to decrement the lastrewardindex
-    # and by the time we have reached here we have moved the window
 
-    state_h["lastrewarddetectedindex"] = state_h["lastrewarddetectedindex"] - 1
 
-    if state_h["lastrewarddetectedindex"] < 0:
-        state_h["lastrewarddetectedindex"] = 0
+    # we store a last reward calculated index for each exercise
+    #so when calculating reward per exercise the reward is only calculated
+    #from that exercise
+    #aka dont see a force increase from benchpress when you do deadlift and count
+    #it as reward
 
-    start_index = state_h["lastrewarddetectedindex"]
 
-    start_workout_step = state_h["workoutxseries"][start_index]
-    start_workout_reps_completed = start_workout_step["reps_completed"]
-    start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
-    start_workout_velocities = []
-    for iiii in range(int(math.floor(start_workout_reps_completed))):
-        a_velocity = start_workout_step["velocities_arr_" + str(iiii)]
-        start_workout_velocities.append(a_velocity)
 
-    # when we make the train units that we bootstrap this with
-    # we pad the units
-    # so here when it is first bootstrapped it can see those padded values here
-    # they will show up as nan
-    # if that happens here I suppose we just set the index to calculate the next
-    # reward from
+    rl_exercise_chosen_h = action_exercise_name_human
+    no_reward_just_set_last_reward_detected_index = False
+    start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+
+    if start_index is None:
+        no_reward_just_set_last_reward_detected_index = True
 
     start_workout_force = None
-    no_reward_just_set_last_reward_detected_index = False
-    if len(start_workout_velocities)==0:
-        no_reward_just_set_last_reward_detected_index = True
-    else:
-        start_workout_average_velocity = np.mean(start_workout_velocities)
-        start_workout_force = start_workout_average_velocity*start_workout_weight_lbs
+    latest_workout_force = None
 
 
-    latest_workout_step = state_h["workoutxseries"][-1]
-    latest_workout_reps_completed = latest_workout_step["reps_completed"]
-    latest_workout_weight_lbs = float(latest_workout_step["weight_lbs"])
-    latest_workout_velocities = []
-    for iiii in range(int(math.floor(latest_workout_reps_completed))):
-        a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
-        latest_workout_velocities.append(a_velocity)
-    latest_workout_average_velocity = np.mean(latest_workout_velocities)
-    latest_workout_force = latest_workout_average_velocity*latest_workout_weight_lbs
 
-    # force here units are in lbs per meters/second oh boy
-    # should convert fully to metric but don't really need to
-    # bc rl agent doesnt really care about what units
-    # reward is in
+    # have to do this bc the timeseries length is a fixed moving window
+    # so when we move the window we need to decrement the lastrewardindex
+    # for each exercise
+    # bc by the time we have reached here we have moved the window
+
+    keys = state_h["lastrewarddetectedindexes"]
+    for akey in keys:
+        checkNone = state_h["lastrewarddetectedindexes"][akey]
+        if checkNone is not None:
+            state_h["lastrewarddetectedindexes"][akey] = state_h["lastrewarddetectedindexes"][akey] - 1
+            if state_h["lastrewarddetectedindexes"][akey] < 0:
+                state_h["lastrewarddetectedindexes"][akey] = None
+
+
+    if not no_reward_just_set_last_reward_detected_index:
+
+        start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+
+        start_workout_step = state_h["workoutxseries"][start_index]
+        start_workout_reps_completed = start_workout_step["reps_completed"]
+        start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
+        start_workout_velocities = []
+        for iiii in range(int(math.floor(start_workout_reps_completed))):
+            a_velocity = start_workout_step["velocities_arr_" + str(iiii)]
+            start_workout_velocities.append(a_velocity)
+
+        # when we make the train units that we bootstrap this with
+        # we pad the units
+        # so here when it is first bootstrapped it can see those padded values here
+        # they will show up as nan
+        # if that happens here I suppose we just set the index to calculate the next
+        # reward from
+
+        start_workout_force = None
+        no_reward_just_set_last_reward_detected_index = False
+        if len(start_workout_velocities)==0:
+            no_reward_just_set_last_reward_detected_index = True
+        else:
+            start_workout_average_velocity = np.mean(start_workout_velocities)
+            start_workout_force = start_workout_average_velocity*start_workout_weight_lbs
+
+
+        latest_workout_step = state_h["workoutxseries"][-1]
+        latest_workout_reps_completed = latest_workout_step["reps_completed"]
+        latest_workout_weight_lbs = float(latest_workout_step["weight_lbs"])
+        latest_workout_velocities = []
+        for iiii in range(int(math.floor(latest_workout_reps_completed))):
+            a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
+            latest_workout_velocities.append(a_velocity)
+        latest_workout_average_velocity = np.mean(latest_workout_velocities)
+        latest_workout_force = latest_workout_average_velocity*latest_workout_weight_lbs
+
+        # force here units are in lbs per meters/second oh boy
+        # should convert fully to metric but don't really need to
+        # bc rl agent doesnt really care about what units
+        # reward is in
 
     reward = 0
     if no_reward_just_set_last_reward_detected_index:
-        state_h["lastrewarddetectedindex"] = len(state_h["workoutxseries"])-1
+        state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"])-1
     else:
         new_reward = latest_workout_force - start_workout_force
         if new_reward > 0:
             reward = new_reward
-            state_h["lastrewarddetectedindex"] = len(state_h["workoutxseries"]) - 1
+            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
         #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
         #      str(state_h["lastrewarddetectedindex"])
-        print new_reward
-
-
-
-
-
-
-    '''
-    packaged_workout["reps_completed"] = reps_completed
-
-    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-        packaged_workout["velocities_arr_" + str(iiii)] = velarr[iiii]
-
-    packaged_workout["weight_lbs"] = weight_lbs
-    '''
+        print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
+        #print new_reward
 
     ABC = None
 
 
-    return state_h
+    return state_h,reward
 
     
 

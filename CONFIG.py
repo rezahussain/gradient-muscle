@@ -37,7 +37,10 @@ CONFIG_WORKOUT_LOOKBACK = 2
 CONFIG_BATCH_SIZE = 6
 CONFIG_MAX_REPS_PER_SET = 15
 CONFIG_MAX_WEIGHT = 200
+
+#-----------------------------------------------------------------
 #assuming they do 25 sets per workout, everyday
 #its 40 days before there are 1000 sets
 #and after 1000 timesteps the LSTM doesnt really remember further
 CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP = 14
+#-----------------------------------------------------------------
