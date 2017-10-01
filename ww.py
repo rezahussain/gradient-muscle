@@ -945,253 +945,254 @@ def convert_human_unit_to_machine(h_unit,norm_vals):
 class Lift_NN():
     def __init__(self,a_dayseriesx,a_userx,a_workoutxseries,a_workouty,CHOSEN_BATCH_SIZE):
 
+        #--------------------------------------------------------------------------------------------------------------
+        with tf.variable_scope('stress_model'):
 
-        ##--------------------------------------------------------------------------------------------------------------
+            self.WORLD_NUM_Y_OUTPUT = len(a_workouty)
 
-        self.WORLD_NUM_Y_OUTPUT = len(a_workouty)
+            self.world_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
+                                                   name="world_day_series_input")
+            self.world_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
+            name = "world_workout_series_input")
 
-        #self.day_series_input = tf.placeholder(tf.float32 , (None,len(a_dayseriesx),len(a_dayseriesx[0])),name="day_series_input")
-        #self.workout_series_input = tf.placeholder(tf.float32, (None, len(a_workoutxseries), len(a_workoutxseries[0])),
-        #                                           name="workout_series_input")
-
-        self.world_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                               name="world_day_series_input")
-        self.world_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-        name = "world_workout_series_input")
-
-        self.world_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="world_user_vector_input")
-        self.world_workout_y = tf.placeholder(tf.float32, (None, len(a_workouty)), name="world_workouty")
+            self.world_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="world_user_vector_input")
+            self.world_workout_y = tf.placeholder(tf.float32, (None, len(a_workouty)), name="world_workouty")
 
 
 
-        with tf.variable_scope('world_workout_series_stageA'):
-            world_wo_cellA = tf.contrib.rnn.LSTMCell(100)
-            world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA, self.world_workout_series_input,
+            with tf.variable_scope('world_workout_series_stageA'):
+                world_wo_cellA = tf.contrib.rnn.LSTMCell(100)
+                world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA, self.world_workout_series_input,
+                                                                             dtype=tf.float32)
+                world_wo_batchA = tf.layers.batch_normalization(world_wo_rnn_outputsA)
+
+            with tf.variable_scope('world_workout_series_stageB'):
+                world_wo_cellB = tf.contrib.rnn.LSTMCell(100)
+                world_wo_resB = tf.contrib.rnn.ResidualWrapper(world_wo_cellB)
+                world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_rnn_outputsA,
                                                                          dtype=tf.float32)
-            world_wo_batchA = tf.layers.batch_normalization(world_wo_rnn_outputsA)
-
-        with tf.variable_scope('world_workout_series_stageB'):
-            world_wo_cellB = tf.contrib.rnn.LSTMCell(100)
-            world_wo_resB = tf.contrib.rnn.ResidualWrapper(world_wo_cellB)
-            world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_rnn_outputsA,
-                                                                     dtype=tf.float32)
-            world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
+                world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
 
 
-        with tf.variable_scope('world_day_series_stageA'):
-            world_day_cellA = tf.contrib.rnn.LSTMCell(100)
-            world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA, self.world_day_series_input,
-                                                                       dtype=tf.float32)
-            world_day_batchA = tf.layers.batch_normalization(world_day_rnn_outputsA)
+            with tf.variable_scope('world_day_series_stageA'):
+                world_day_cellA = tf.contrib.rnn.LSTMCell(100)
+                world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA, self.world_day_series_input,
+                                                                           dtype=tf.float32)
+                world_day_batchA = tf.layers.batch_normalization(world_day_rnn_outputsA)
 
-        with tf.variable_scope('world_day_series_stageB'):
-            world_day_cellB = tf.contrib.rnn.LSTMCell(100)
-            world_day_resB = tf.contrib.rnn.ResidualWrapper(world_day_cellB)
-            world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_rnn_outputsA,
-                                                                       dtype=tf.float32)
-            world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
+            with tf.variable_scope('world_day_series_stageB'):
+                world_day_cellB = tf.contrib.rnn.LSTMCell(100)
+                world_day_resB = tf.contrib.rnn.ResidualWrapper(world_day_cellB)
+                world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_rnn_outputsA,
+                                                                           dtype=tf.float32)
+                world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
 
-        '''
-        with tf.variable_scope('workout_input'):
-            world_cellA = tf.contrib.rnn.NASCell(50)
-            world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
+            '''
+            with tf.variable_scope('workout_input'):
+                world_cellA = tf.contrib.rnn.NASCell(50)
+                world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
+    
+            with tf.variable_scope('day_input'):
+                world_cellAA = tf.contrib.rnn.NASCell(50)
+                world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
+    
+            '''
 
-        with tf.variable_scope('day_input'):
-            world_cellAA = tf.contrib.rnn.NASCell(50)
-            world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
+            '''
+            with tf.variable_scope('world_workout_series_stageA'):
+                world_cellA = tf.contrib.rnn.LSTMCell(1000)
+                world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
+    
+            with tf.variable_scope('world_workout_series_stageB'):
+                world_cellB = tf.contrib.rnn.LSTMCell(1000)
+                world_rnn_outputsB, world_rnn_stateB = tf.nn.dynamic_rnn(world_cellB, world_rnn_outputsA, dtype=tf.float32)
+    
+            with tf.variable_scope('world_day_series_stageA'):
+                world_cellAA = tf.contrib.rnn.LSTMCell(1000)
+                world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA, self.world_day_series_input, dtype=tf.float32)
+    
+            with tf.variable_scope('world_day_series_stageB'):
+                world_cellBB = tf.contrib.rnn.LSTMCell(1000)
+                world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
+            '''
 
-        '''
+            world_lastA = world_wo_rnn_outputsB[:, -1:]  # get last lstm output
+            world_lastAA = world_day_rnn_outputsB[:, -1:]  # get last lstm output
 
-        '''
-        with tf.variable_scope('world_workout_series_stageA'):
-            world_cellA = tf.contrib.rnn.LSTMCell(1000)
-            world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
-
-        with tf.variable_scope('world_workout_series_stageB'):
-            world_cellB = tf.contrib.rnn.LSTMCell(1000)
-            world_rnn_outputsB, world_rnn_stateB = tf.nn.dynamic_rnn(world_cellB, world_rnn_outputsA, dtype=tf.float32)
-
-        with tf.variable_scope('world_day_series_stageA'):
-            world_cellAA = tf.contrib.rnn.LSTMCell(1000)
-            world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA, self.world_day_series_input, dtype=tf.float32)
-
-        with tf.variable_scope('world_day_series_stageB'):
-            world_cellBB = tf.contrib.rnn.LSTMCell(1000)
-            world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
-        '''
-
-        world_lastA = world_wo_rnn_outputsB[:, -1:]  # get last lstm output
-        world_lastAA = world_day_rnn_outputsB[:, -1:]  # get last lstm output
-
-        #world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
-        #world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
+            #world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
+            #world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
 
 
-        #world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
-        #world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
+            #world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
+            #world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
 
-        self.world_lastA = world_lastA
-        self.world_lastAA = world_lastAA
+            self.world_lastA = world_lastA
+            self.world_lastAA = world_lastAA
 
-        # takes those two 250 and concats them to a 500
-        self.world_combined = tf.concat([world_lastA, world_lastAA], 2)
-        self.world_b4shape = tf.shape(self.world_combined)
+            # takes those two 250 and concats them to a 500
+            self.world_combined = tf.concat([world_lastA, world_lastAA], 2)
+            self.world_b4shape = tf.shape(self.world_combined)
 
-        #so at setup time you need to know the shape
-        #otherwise it is none
-        #and the dense layer cannot be setup with a none dimension
-        self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,100+100))
-        self.world_afshape = tf.shape(self.world_combined_shaped)
-        #tf.set_shape()
+            #so at setup time you need to know the shape
+            #otherwise it is none
+            #and the dense layer cannot be setup with a none dimension
+            self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,100+100))
+            self.world_afshape = tf.shape(self.world_combined_shaped)
+            #tf.set_shape()
 
-        self.world_combined2 = tf.concat([self.world_combined_shaped,self.world_user_vector_input],1)
-        world_dd = tf.layers.dense(self.world_combined2,self.WORLD_NUM_Y_OUTPUT)
+            self.world_combined2 = tf.concat([self.world_combined_shaped,self.world_user_vector_input],1)
+            world_dd = tf.layers.dense(self.world_combined2,self.WORLD_NUM_Y_OUTPUT)
 
-        self.world_y = world_dd
+            self.world_y = world_dd
 
-        self.world_e = tf.losses.mean_squared_error(self.world_workout_y, self.world_y)
-        self.world_operation = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(self.world_e)
+            self.world_e = tf.losses.mean_squared_error(self.world_workout_y, self.world_y)
+            self.world_operation = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(self.world_e)
 
 
         ##--------------------------------------------------------------------------------------------------------------
+        with tf.variable_scope('rl_agent'):
+            ##let the agent pick DONE as an exercise
+            ##when the env sees that it moves it to the next day
+            ##let the agent pick the exercises too
+            #just penalize it if it does a circuit
+            # can use the same setup as worldNN but diff output
 
-        ##let the agent pick DONE as an exercise
-        ##when the env sees that it moves it to the next day
-        ##let the agent pick the exercises too
-        #just penalize it if it does a circuit
-        # can use the same setup as worldNN but diff output
+            DAYSERIESWINDOWSIZE = 11
+            WORKOUTSERIESWINDOWSIZE = 32
 
-        self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                               name="agent_day_series_input")
-        self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-        name = "agent_workout_series_input")
-        self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
+            self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
+                                                   name="agent_day_series_input")
 
+            self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
+            name = "agent_workout_series_input")
 
-        ##--------change the below world to agent
-        ##--------then setup the outputs
-        ##do rl assembling of inputs later when u start coding the rl environment interaction code
-
-        self.AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
-
-        self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                               name="agent_day_series_input")
+            self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
 
 
-        self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-        name = "agent_workout_series_input")
+            ##--------change the below world to agent
+            ##--------then setup the outputs
+            ##do rl assembling of inputs later when u start coding the rl environment interaction code
 
-        self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
-
-        with tf.variable_scope('agent_workout_series_stage'):
-            agent_cellA = tf.contrib.rnn.LSTMCell(250)
-            agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, self.agent_workout_series_input, dtype=tf.float32)
-
-        with tf.variable_scope('agent_day_series_stage'):
-            agent_cellAA = tf.contrib.rnn.LSTMCell(250)
-            agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, self.agent_day_series_input, dtype=tf.float32)
-
-        agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
-        agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
-
-        self.agent_lastA = agent_lastA
-        self.agent_lastAA = agent_lastAA
-
-        # takes those two 250 and concats them to a 500
-        self.agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
-        self.agent_b4shape = tf.shape(self.agent_combined)
-
-        #so at setup time you need to know the shape
-        #otherwise it is none
-        #and the dense layer cannot be setup with a none dimension
-
-        #self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
+            self.AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
 
 
-        # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
-        #so in that case we pass the batch num to it
-        #so the end result becomes 10,500
-        #when we r doing rl agent decision making we use a batch of 1
-        #so in that case it looks like 1,500
-        self.agent_combined_shaped = tf.reshape(self.agent_combined, (self.agent_b4shape[0], 500))
+            with tf.variable_scope('agent_workout_series_stage'):
+                agent_cellA = tf.contrib.rnn.LSTMCell(250)
+                agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, self.agent_workout_series_input, dtype=tf.float32)
 
-        self.agent_afshape = tf.shape(self.agent_combined_shaped)
-        #tf.set_shape()
+            with tf.variable_scope('agent_day_series_stage'):
+                agent_cellAA = tf.contrib.rnn.LSTMCell(250)
+                agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, self.agent_day_series_input, dtype=tf.float32)
 
-        self.agent_combined2 = tf.concat([self.agent_combined_shaped,self.agent_user_vector_input],1)
+            agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
+            agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
 
-        agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
-        dd3 = tf.contrib.layers.softmax(agent_dd)
+            self.agent_lastA = agent_lastA
+            self.agent_lastAA = agent_lastAA
 
-        self.agent_y_policy = dd3
-        self.agent_value = tf.layers.dense(self.agent_combined2, 1)
+            # takes those two 250 and concats them to a 500
+            self.agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
+            self.agent_b4shape = tf.shape(self.agent_combined)
 
-        ##--------------------------------------------------------------------------------------------------------------
+            #so at setup time you need to know the shape
+            #otherwise it is none
+            #and the dense layer cannot be setup with a none dimension
 
-        # RL setup is actor critic
-        # so we calc a value function of how good it is to be in a certain state
-        # then also calculate a policy
-        # when updating the gradients for the policy, we take into account what the value function said
-
-        self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32)
-        self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32)
-        self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32)
-        self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32)
-
-        # we concatenate all of the actions from each observation
-        # this makes the index that each observed action would have in the concatenated array
-        # the first part makes the indexes for each 0 action index
-        # then adding_the action holder adds the actual action offset to each index of all of the
-
-        # tldr it makes an array of indexes for an array where all of the action arrays are concatenated
-        # this gives us the outputs to apply the reward function to
-
-        # aka get the value outputs so we can compare them to the rewards they gave
-        # and adjust them
-
-        value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
-        responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
-        self.value_loss = -tf.reduce_mean(tf.squared_difference(self.reward_holder, responsible_values))
+            #self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
 
 
-        # do the same for the policy
-        # 'advantage' here is defined as how much better or worse the result was from the prediction
+            # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
+            #so in that case we pass the batch num to it
+            #so the end result becomes 10,500
+            #when we r doing rl agent decision making we use a batch of 1
+            #so in that case it looks like 1,500
 
-        indexes = tf.range(0, tf.shape(self.agent_y_policy)[0]) * tf.shape(self.agent_y_policy)[1] + self.action_holder
-        # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
-        responsible_outputs = tf.gather(tf.reshape(self.agent_y_policy, [-1]), indexes)
-        self.policy_loss = -tf.reduce_mean(tf.log(responsible_outputs) * self.advantage_holder)
 
-        # we look at the output of the policy, if it had low confidence in its choice
-        # like all the choices were rated almost the same number
-        # and lets say something bad happened or good happened
-        # dont adjust the gradients that much
-        entropy = - tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
+            self.agent_combined_shaped = tf.reshape(self.agent_combined, (-1, 500))
 
-        # loss = 0.5 * value_loss + policy_loss - entropy*0.01
-        self.loss = 0.5 * self.value_loss + self.policy_loss - entropy * 0.01
+            #self.agent_combined_shaped = tf.reshape(self.agent_combined, [-1])
 
-        #-----------------------------------------------------------------------------
+            self.agent_afshape = tf.shape(self.agent_combined_shaped)
 
-        tvars = tf.trainable_variables()
-        gradient_holders = []
-        for idx, var in enumerate(tvars):
-            placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
-            gradient_holders.append(placeholder)
+            self.agent_combined2 = tf.concat([self.agent_combined_shaped,self.agent_user_vector_input],1)
 
-        self.gradient = tf.gradients(self.loss, tvars)
-        var_norms = tf.global_norm(tvars)
+            agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
 
-        # gradient clipping is probably the most crucial part
-        # without gradient clipping my polebox rl toy examples didnt
-        # seem to converge
-        # I see gradient clipping as a redneck version of
-        # proximal policy optimization
-        grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
+            dd3 = tf.contrib.layers.softmax(agent_dd)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
-        update_batch = optimizer.apply_gradients(zip(gradient_holders, tvars))
+            self.agent_y_policy = dd3
+            self.agent_value = tf.layers.dense(self.agent_combined2, 1)
 
+            ##--------------------------------------------------------------------------------------------------------------
+
+            # RL setup is actor critic
+            # so we calc a value function of how good it is to be in a certain state
+            # then also calculate a policy
+            # when updating the gradients for the policy, we take into account what the value function said
+
+            self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+            self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32)
+            self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+            self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+
+            # we concatenate all of the actions from each observation
+            # this makes the index that each observed action would have in the concatenated array
+            # the first part makes the indexes for each 0 action index
+            # then adding_the action holder adds the actual action offset to each index of all of the
+
+            # tldr it makes an array of indexes for an array where all of the action arrays are concatenated
+            # this gives us the outputs to apply the reward function to
+
+            # aka get the value outputs so we can compare them to the rewards they gave
+            # and adjust them
+
+            value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
+            responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
+            self.value_loss = -tf.reduce_mean(tf.squared_difference(self.reward_holder, responsible_values))
+
+            # do the same for the policy
+            # 'advantage' here is defined as how much better or worse the result was from the prediction
+
+            indexes = tf.range(0, tf.shape(self.agent_y_policy)[0]) * tf.shape(self.agent_y_policy)[1] + self.action_holder
+            # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
+            responsible_outputs = tf.gather(tf.reshape(self.agent_y_policy, [-1]), indexes)
+            self.policy_loss = -tf.reduce_mean(tf.log(responsible_outputs) * self.advantage_holder)
+
+            # we look at the output of the policy, if it had low confidence in its choice
+            # like all the choices were rated almost the same number
+            # and lets say something bad happened or good happened
+            # dont adjust the gradients that much
+            entropy = - tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
+
+            # loss = 0.5 * value_loss + policy_loss - entropy*0.01
+            self.loss = 0.5 * self.value_loss + self.policy_loss - entropy * 0.01
+
+            #-----------------------------------------------------------------------------
+
+            self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent')
+            #self.tvars = [agent_lastA]
+
+            self.gradient_holders = []
+            for idx, var in enumerate(self.tvars):
+                placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
+                self.gradient_holders.append(placeholder)
+
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
+
+            #self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
+            self.gradient = tf.gradients(self.loss, self.tvars)
+            var_norms = tf.global_norm(self.tvars)
+
+
+            # gradient clipping is probably the most crucial part
+            # without gradient clipping my polebox rl toy examples didnt
+            # seem to converge
+            # I see gradient clipping as a poormans version of
+            # proximal policy optimization
+
+            grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
+
+            update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
 
 
         #------------------------------------------------------------------------------
@@ -1522,7 +1523,11 @@ def train_rl_agent():
             alw.agent_day_series_input,
             alw.agent_workout_series_input,
             alw.agent_y_policy,
-            alw.agent_value
+            alw.agent_value,
+            alw.agent_afshape,
+                           alw.agent_combined2,
+            alw.agent_user_vector_input
+
             ],
             feed_dict={
                 alw.agent_day_series_input: day_series_batch_m,
@@ -1614,7 +1619,8 @@ def train_rl_agent():
         alw.reward_holder: preward,
         alw.action_holder: paction,
         alw.value_holder: pvalue,
-        alw.advantage_holder: padvantages,
+        alw.advantage_holder: padvantages
+        ,
         alw.agent_day_series_input: pdayseriesx,
         alw.agent_workout_series_input:pworkoutxseries,
         alw.agent_user_vector_input:pusersx
@@ -1622,18 +1628,19 @@ def train_rl_agent():
 
 
     results1 = sess.run([
-                         alw.value_loss,
+                         alw.gradient,
                          alw.reward_holder,
                          alw.action_holder,
                          alw.value_holder], feed_dict=feed_dict)
 
 
-    '''
+
     grads = results1[0]
+
 
     for idx, grad in enumerate(grads):
         gradBuffer[idx] += grad
-    '''
+    
 
 
     r_history = []
@@ -1642,16 +1649,6 @@ def train_rl_agent():
     state_history = []
 
 
-
-
-    '''
-    value_episode.append(agent_value)
-    reward_episode.append(reward)
-    action_index_episode.append(action_index)
-    dayseriesx_episode.append(m_unit["dayseriesx"])
-    userx_episode.append(m_unit["userx"])
-    workoutxseries_episode.append(m_unit["workoutxseries"])
-    '''
 
 
 
