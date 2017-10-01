@@ -1104,18 +1104,97 @@ class Lift_NN():
         #so at setup time you need to know the shape
         #otherwise it is none
         #and the dense layer cannot be setup with a none dimension
-        self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
+
+        #self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
+
+
+        # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
+        #so in that case we pass the batch num to it
+        #so the end result becomes 10,500
+        #when we r doing rl agent decision making we use a batch of 1
+        #so in that case it looks like 1,500
+        self.agent_combined_shaped = tf.reshape(self.agent_combined, (self.agent_b4shape[0], 500))
+
         self.agent_afshape = tf.shape(self.agent_combined_shaped)
         #tf.set_shape()
 
         self.agent_combined2 = tf.concat([self.agent_combined_shaped,self.agent_user_vector_input],1)
-        agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
 
+        agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
         dd3 = tf.contrib.layers.softmax(agent_dd)
 
-        self.agent_y = dd3
+        self.agent_y_policy = dd3
+        self.agent_value = tf.layers.dense(self.agent_combined2, 1)
 
         ##--------------------------------------------------------------------------------------------------------------
+
+        # RL setup is actor critic
+        # so we calc a value function of how good it is to be in a certain state
+        # then also calculate a policy
+        # when updating the gradients for the policy, we take into account what the value function said
+
+        self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+        self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32)
+        self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+        self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+
+        # we concatenate all of the actions from each observation
+        # this makes the index that each observed action would have in the concatenated array
+        # the first part makes the indexes for each 0 action index
+        # then adding_the action holder adds the actual action offset to each index of all of the
+
+        # tldr it makes an array of indexes for an array where all of the action arrays are concatenated
+        # this gives us the outputs to apply the reward function to
+
+        # aka get the value outputs so we can compare them to the rewards they gave
+        # and adjust them
+
+        value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
+        responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
+        self.value_loss = -tf.reduce_mean(tf.squared_difference(self.reward_holder, responsible_values))
+
+
+        # do the same for the policy
+        # 'advantage' here is defined as how much better or worse the result was from the prediction
+
+        indexes = tf.range(0, tf.shape(self.agent_y_policy)[0]) * tf.shape(self.agent_y_policy)[1] + self.action_holder
+        # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
+        responsible_outputs = tf.gather(tf.reshape(self.agent_y_policy, [-1]), indexes)
+        self.policy_loss = -tf.reduce_mean(tf.log(responsible_outputs) * self.advantage_holder)
+
+        # we look at the output of the policy, if it had low confidence in its choice
+        # like all the choices were rated almost the same number
+        # and lets say something bad happened or good happened
+        # dont adjust the gradients that much
+        entropy = - tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
+
+        # loss = 0.5 * value_loss + policy_loss - entropy*0.01
+        self.loss = 0.5 * self.value_loss + self.policy_loss - entropy * 0.01
+
+        #-----------------------------------------------------------------------------
+
+        tvars = tf.trainable_variables()
+        gradient_holders = []
+        for idx, var in enumerate(tvars):
+            placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
+            gradient_holders.append(placeholder)
+
+        self.gradient = tf.gradients(self.loss, tvars)
+        var_norms = tf.global_norm(tvars)
+
+        # gradient clipping is probably the most crucial part
+        # without gradient clipping my polebox rl toy examples didnt
+        # seem to converge
+        # I see gradient clipping as a redneck version of
+        # proximal policy optimization
+        grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
+
+        optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
+        update_batch = optimizer.apply_gradients(zip(gradient_holders, tvars))
+
+
+
+        #------------------------------------------------------------------------------
 
         self.asaver = tf.train.Saver()
 
@@ -1347,6 +1426,12 @@ def train_rl_agent():
     sess = tf.Session()
     sess.run(init_op)
 
+    #this shouldn't affect the stress model I think
+    gradBuffer = sess.run(tf.trainable_variables())
+    for ix,grad in enumerate(gradBuffer):
+        gradBuffer[ix] = grad*0
+
+
     #saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
     alw.asaver.restore(sess, tf.train.latest_checkpoint('/Users/admin/Desktop/tmp/'))
 
@@ -1364,12 +1449,24 @@ def train_rl_agent():
     EPISODE_LENGTH = 10
 
 
+    reward_episode = []
+    action_index_episode = []
+    value_episode = []
+    dayseriesx_episode = []
+    userx_episode = []
+    workoutxseries_episode = []
+
+
+    #then run the whole set for x epochs (add loop)
+    #run an episode with each sample(add looop)
     for i in range(EPISODE_LENGTH):
 
         h_unit = {}
 
         if len(state.keys()) == 0:
+
             wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(starting_point_name,1,for_human=True)
+
             print wo_y_batch_h.shape
             print wo_xseries_batch_h.shape
             print user_x_batch_h.shape
@@ -1384,6 +1481,7 @@ def train_rl_agent():
             #but here we want to make a decision with full data
             #so we just throw off that last partial sample
 
+            #reenable thisREZA
             npworkoutxseries = h_unit["workoutxseries"]
             npworkoutxseries = np.delete(npworkoutxseries,len(npworkoutxseries)-1)
             h_unit["workoutxseries"] = npworkoutxseries
@@ -1393,9 +1491,9 @@ def train_rl_agent():
 
 
             state = {}
-            state["dayseriesx"] = day_series_batch_h[0]
-            state["userx"] = user_x_batch_h[0]
-            state["workoutxseries"] = wo_xseries_batch_h[0]
+            state["dayseriesx"] = h_unit["dayseriesx"]
+            state["userx"] = h_unit["userx"]
+            state["workoutxseries"] = h_unit["workoutxseries"]
 
 
             #state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
@@ -1423,7 +1521,8 @@ def train_rl_agent():
         results = sess.run([
             alw.agent_day_series_input,
             alw.agent_workout_series_input,
-            alw.agent_y
+            alw.agent_y_policy,
+            alw.agent_value
             ],
             feed_dict={
                 alw.agent_day_series_input: day_series_batch_m,
@@ -1431,18 +1530,22 @@ def train_rl_agent():
                 alw.agent_user_vector_input: user_x_batch_m
             })
 
+        #0 bc we only run batch sizes of 1
+        #so we can assume
         agent_softmax_choices = results[2][0]
-
-
+        agent_value = results[3][0][0]
 
         #now just use the index of the highest softmax value to lookup the action
         #rl_all_possible_actions
 
-        oai = np.argmax(agent_softmax_choices)
-        oai_human_readable_action = rl_all_possible_actions[oai]
-        rai_human_readable_action = np.random.choice(rl_all_possible_actions)
-        human_readable_action = None
+        oai_index = np.argmax(agent_softmax_choices)
+        oai_human_readable_action = rl_all_possible_actions[oai_index]
 
+        rai_human_readable_action = np.random.choice(rl_all_possible_actions)
+        rai_index = rl_all_possible_actions.index(rai_human_readable_action)
+
+        human_readable_action = None
+        action_index = None
 
         percent_done = 0.10
         random_prob = 1.0 - percent_done
@@ -1451,16 +1554,105 @@ def train_rl_agent():
         # do_random_action = np.random.choice([True, False], p=a_dist)
         if do_random_action:
             human_readable_action = rai_human_readable_action
+            action_index = rai_index
         else:
             human_readable_action = oai_human_readable_action
+            action_index = oai_index
 
-
-        #human_readable_action = rl_all_possible_actions[aai]
         print human_readable_action
 
         # now pass the chosen action + state to the env
         action = human_readable_action
-        state = agent_world_take_step(state,action,alw,sess)
+        state,reward = agent_world_take_step(state,action,alw,sess)
+
+        value_episode.append(agent_value)
+        reward_episode.append(reward)
+        action_index_episode.append(action_index)
+        dayseriesx_episode.append(m_unit["dayseriesx"][:])
+        userx_episode.append(m_unit["userx"][:])
+        workoutxseries_episode.append(m_unit["workoutxseries"][:])
+
+
+
+    gamma = 0.99
+    def discount_rewards(r):
+        # the strength with which we encourage a sampled action is the weighted sum of all
+        # rewards afterwards
+        """ take 1D float array of rewards and compute discounted reward """
+        discounted_r = np.zeros_like(r)
+        running_add = 0
+        for t in reversed(xrange(0, r.size)):
+            running_add = running_add * gamma + r[t]
+            discounted_r[t] = running_add
+        return discounted_r
+
+
+    dvalue_episode = discount_rewards(np.array(value_episode))
+    advantages_episode = []
+    advantages_episode = np.array(advantages_episode)
+    last_value = value_episode[0]
+    for i in range(len(reward_episode)):
+        adv = reward_episode[i] + dvalue_episode[i] - last_value
+        last_value = value_episode[i]
+        advantages_episode = np.append(advantages_episode, [adv])
+
+
+    advantages_episode = discount_rewards(advantages_episode)
+    dreward_episode = discount_rewards(np.array(reward_episode))
+
+
+    preward = np.array(dreward_episode)
+    paction = np.array(action_index_episode)
+    pvalue = np.array(value_episode)
+    padvantages = np.array(advantages_episode)
+    pusersx = np.array(userx_episode)
+    pworkoutxseries = np.array(workoutxseries_episode)
+    pdayseriesx = np.array(dayseriesx_episode)
+
+
+    feed_dict = {
+        alw.reward_holder: preward,
+        alw.action_holder: paction,
+        alw.value_holder: pvalue,
+        alw.advantage_holder: padvantages,
+        alw.agent_day_series_input: pdayseriesx,
+        alw.agent_workout_series_input:pworkoutxseries,
+        alw.agent_user_vector_input:pusersx
+    }
+
+
+    results1 = sess.run([
+                         alw.value_loss,
+                         alw.reward_holder,
+                         alw.action_holder,
+                         alw.value_holder], feed_dict=feed_dict)
+
+
+    '''
+    grads = results1[0]
+
+    for idx, grad in enumerate(grads):
+        gradBuffer[idx] += grad
+    '''
+
+
+    r_history = []
+    a_history = []
+    xi_history = []
+    state_history = []
+
+
+
+
+    '''
+    value_episode.append(agent_value)
+    reward_episode.append(reward)
+    action_index_episode.append(action_index)
+    dayseriesx_episode.append(m_unit["dayseriesx"])
+    userx_episode.append(m_unit["userx"])
+    workoutxseries_episode.append(m_unit["workoutxseries"])
+    '''
+
 
 
 
@@ -1543,7 +1735,6 @@ def agent_world_take_step(state,action,ai_graph,sess):
     state_h['userx'] = a_user_x_h
     state_h['workoutxseries'] = a_workout_series_h
     state_h['workouty'] = {}
-
 
     norm_vals = get_norm_values()
     state_m = convert_human_unit_to_machine(state_h, norm_vals)
