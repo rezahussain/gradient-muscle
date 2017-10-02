@@ -1447,204 +1447,208 @@ def train_rl_agent():
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    for a_sample_name in all_names:
+    NUM_EPOCHS = 3
 
-        a_sample_name_batch = [a_sample_name]
-        state = {}
+    for aepoch in range(NUM_EPOCHS):
 
-        EPISODE_LENGTH = 10
+        for a_sample_name in all_names:
 
+            a_sample_name_batch = [a_sample_name]
+            state = {}
 
-        reward_episode = []
-        action_index_episode = []
-        value_episode = []
-        dayseriesx_episode = []
-        userx_episode = []
-        workoutxseries_episode = []
+            EPISODE_LENGTH = 10
 
 
-        #then run the whole set for x epochs (add loop)
-        #run an episode with each sample(add looop)
-        for i in range(EPISODE_LENGTH):
-
-            h_unit = {}
-
-            if len(state.keys()) == 0:
-
-                wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(a_sample_name_batch,1,for_human=True)
-
-                print wo_y_batch_h.shape
-                print wo_xseries_batch_h.shape
-                print user_x_batch_h.shape
-                print day_series_batch_h.shape
-
-                h_unit["dayseriesx"] = day_series_batch_h[0]
-                h_unit["userx"] = user_x_batch_h[0]
-                h_unit["workoutxseries"] = wo_xseries_batch_h[0]
-
-                #we are bootstrapping with a training sample for training the rl
-                #so the last sample is hollowed out for the stress model to predict
-                #but here we want to make a decision with full data
-                #so we just throw off that last partial sample
-
-                #reenable thisREZA
-                npworkoutxseries = h_unit["workoutxseries"]
-                npworkoutxseries = np.delete(npworkoutxseries,len(npworkoutxseries)-1)
-                h_unit["workoutxseries"] = npworkoutxseries
-
-                #h_unit["workouty"] = wo_y_batch_h[0]
-                h_unit["workouty"] = {}
+            reward_episode = []
+            action_index_episode = []
+            value_episode = []
+            dayseriesx_episode = []
+            userx_episode = []
+            workoutxseries_episode = []
 
 
-                state = {}
-                state["dayseriesx"] = h_unit["dayseriesx"]
-                state["userx"] = h_unit["userx"]
-                state["workoutxseries"] = h_unit["workoutxseries"]
+            #then run the whole set for x epochs (add loop)
+            #run an episode with each sample(add looop)
+            for i in range(EPISODE_LENGTH):
+
+                h_unit = {}
+
+                if len(state.keys()) == 0:
+
+                    wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(a_sample_name_batch,1,for_human=True)
+
+                    print wo_y_batch_h.shape
+                    print wo_xseries_batch_h.shape
+                    print user_x_batch_h.shape
+                    print day_series_batch_h.shape
+
+                    h_unit["dayseriesx"] = day_series_batch_h[0]
+                    h_unit["userx"] = user_x_batch_h[0]
+                    h_unit["workoutxseries"] = wo_xseries_batch_h[0]
+
+                    #we are bootstrapping with a training sample for training the rl
+                    #so the last sample is hollowed out for the stress model to predict
+                    #but here we want to make a decision with full data
+                    #so we just throw off that last partial sample
+
+                    #reenable thisREZA
+                    npworkoutxseries = h_unit["workoutxseries"]
+                    npworkoutxseries = np.delete(npworkoutxseries,len(npworkoutxseries)-1)
+                    h_unit["workoutxseries"] = npworkoutxseries
+
+                    #h_unit["workouty"] = wo_y_batch_h[0]
+                    h_unit["workouty"] = {}
 
 
-                #state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
-
-                state["lastrewarddetectedindexes"] = {}
-                for exercise_name in CHOOSABLE_EXERCISES:
-                    state["lastrewarddetectedindexes"][exercise_name] = None
-
-            else:
-                h_unit["dayseriesx"] = state["dayseriesx"]
-                h_unit["userx"] = state["userx"]
-                h_unit["workoutxseries"] = state["workoutxseries"]
-                h_unit["workouty"] = {}
-                h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
-
-            m_unit = convert_human_unit_to_machine(h_unit,norm_vals)
-
-            day_series_batch_m = [m_unit["dayseriesx"]]
-            user_x_batch_m = [m_unit["userx"]]
-            wo_xseries_batch_m = [m_unit["workoutxseries"]]
-            wo_y_batch_m = [m_unit["workouty"]]
-
-            ABC = None
-
-            results = sess.run([
-                alw.agent_day_series_input,
-                alw.agent_workout_series_input,
-                alw.agent_y_policy,
-                alw.agent_value,
-                alw.agent_afshape,
-                               alw.agent_combined2,
-                alw.agent_user_vector_input
-
-                ],
-                feed_dict={
-                    alw.agent_day_series_input: day_series_batch_m,
-                    alw.agent_workout_series_input: wo_xseries_batch_m,
-                    alw.agent_user_vector_input: user_x_batch_m
-                })
-
-            #0 bc we only run batch sizes of 1
-            #so we can assume
-            agent_softmax_choices = results[2][0]
-            agent_value = results[3][0][0]
-
-            #now just use the index of the highest softmax value to lookup the action
-            #rl_all_possible_actions
-
-            oai_index = np.argmax(agent_softmax_choices)
-            oai_human_readable_action = rl_all_possible_actions[oai_index]
-
-            rai_human_readable_action = np.random.choice(rl_all_possible_actions)
-            rai_index = rl_all_possible_actions.index(rai_human_readable_action)
-
-            human_readable_action = None
-            action_index = None
-
-            percent_done = 0.10
-            random_prob = 1.0 - percent_done
-            not_random_prob = 1.0 - random_prob
-            do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
-            # do_random_action = np.random.choice([True, False], p=a_dist)
-            if do_random_action:
-                human_readable_action = rai_human_readable_action
-                action_index = rai_index
-            else:
-                human_readable_action = oai_human_readable_action
-                action_index = oai_index
-
-            print human_readable_action
-
-            # now pass the chosen action + state to the env
-            action = human_readable_action
-            state,reward = agent_world_take_step(state,action,alw,sess)
-
-            value_episode.append(agent_value)
-            reward_episode.append(reward)
-            action_index_episode.append(action_index)
-            dayseriesx_episode.append(m_unit["dayseriesx"][:])
-            userx_episode.append(m_unit["userx"][:])
-            workoutxseries_episode.append(m_unit["workoutxseries"][:])
+                    state = {}
+                    state["dayseriesx"] = h_unit["dayseriesx"]
+                    state["userx"] = h_unit["userx"]
+                    state["workoutxseries"] = h_unit["workoutxseries"]
 
 
+                    #state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
 
-        gamma = 0.99
-        def discount_rewards(r):
-            # the strength with which we encourage a sampled action is the weighted sum of all
-            # rewards afterwards
-            """ take 1D float array of rewards and compute discounted reward """
-            discounted_r = np.zeros_like(r)
-            running_add = 0
-            for t in reversed(xrange(0, r.size)):
-                running_add = running_add * gamma + r[t]
-                discounted_r[t] = running_add
-            return discounted_r
+                    state["lastrewarddetectedindexes"] = {}
+                    for exercise_name in CHOOSABLE_EXERCISES:
+                        state["lastrewarddetectedindexes"][exercise_name] = None
+
+                else:
+                    h_unit["dayseriesx"] = state["dayseriesx"]
+                    h_unit["userx"] = state["userx"]
+                    h_unit["workoutxseries"] = state["workoutxseries"]
+                    h_unit["workouty"] = {}
+                    h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
+
+                m_unit = convert_human_unit_to_machine(h_unit,norm_vals)
+
+                day_series_batch_m = [m_unit["dayseriesx"]]
+                user_x_batch_m = [m_unit["userx"]]
+                wo_xseries_batch_m = [m_unit["workoutxseries"]]
+                wo_y_batch_m = [m_unit["workouty"]]
+
+                ABC = None
+
+                results = sess.run([
+                    alw.agent_day_series_input,
+                    alw.agent_workout_series_input,
+                    alw.agent_y_policy,
+                    alw.agent_value,
+                    alw.agent_afshape,
+                                   alw.agent_combined2,
+                    alw.agent_user_vector_input
+
+                    ],
+                    feed_dict={
+                        alw.agent_day_series_input: day_series_batch_m,
+                        alw.agent_workout_series_input: wo_xseries_batch_m,
+                        alw.agent_user_vector_input: user_x_batch_m
+                    })
+
+                #0 bc we only run batch sizes of 1
+                #so we can assume
+                agent_softmax_choices = results[2][0]
+                agent_value = results[3][0][0]
+
+                #now just use the index of the highest softmax value to lookup the action
+                #rl_all_possible_actions
+
+                oai_index = np.argmax(agent_softmax_choices)
+                oai_human_readable_action = rl_all_possible_actions[oai_index]
+
+                rai_human_readable_action = np.random.choice(rl_all_possible_actions)
+                rai_index = rl_all_possible_actions.index(rai_human_readable_action)
+
+                human_readable_action = None
+                action_index = None
+
+                percent_done = 0.10
+                random_prob = 1.0 - percent_done
+                not_random_prob = 1.0 - random_prob
+                do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
+                # do_random_action = np.random.choice([True, False], p=a_dist)
+                if do_random_action:
+                    human_readable_action = rai_human_readable_action
+                    action_index = rai_index
+                else:
+                    human_readable_action = oai_human_readable_action
+                    action_index = oai_index
+
+                print human_readable_action
+
+                # now pass the chosen action + state to the env
+                action = human_readable_action
+                state,reward = agent_world_take_step(state,action,alw,sess)
+
+                value_episode.append(agent_value)
+                reward_episode.append(reward)
+                action_index_episode.append(action_index)
+                dayseriesx_episode.append(m_unit["dayseriesx"][:])
+                userx_episode.append(m_unit["userx"][:])
+                workoutxseries_episode.append(m_unit["workoutxseries"][:])
 
 
-        dvalue_episode = discount_rewards(np.array(value_episode))
-        advantages_episode = []
-        advantages_episode = np.array(advantages_episode)
-        last_value = value_episode[0]
-        for i in range(len(reward_episode)):
-            adv = reward_episode[i] + dvalue_episode[i] - last_value
-            last_value = value_episode[i]
-            advantages_episode = np.append(advantages_episode, [adv])
+
+            gamma = 0.99
+            def discount_rewards(r):
+                # the strength with which we encourage a sampled action is the weighted sum of all
+                # rewards afterwards
+                """ take 1D float array of rewards and compute discounted reward """
+                discounted_r = np.zeros_like(r)
+                running_add = 0
+                for t in reversed(xrange(0, r.size)):
+                    running_add = running_add * gamma + r[t]
+                    discounted_r[t] = running_add
+                return discounted_r
 
 
-        advantages_episode = discount_rewards(advantages_episode)
-        dreward_episode = discount_rewards(np.array(reward_episode))
+            dvalue_episode = discount_rewards(np.array(value_episode))
+            advantages_episode = []
+            advantages_episode = np.array(advantages_episode)
+            last_value = value_episode[0]
+            for i in range(len(reward_episode)):
+                adv = reward_episode[i] + dvalue_episode[i] - last_value
+                last_value = value_episode[i]
+                advantages_episode = np.append(advantages_episode, [adv])
 
 
-        preward = np.array(dreward_episode)
-        paction = np.array(action_index_episode)
-        pvalue = np.array(value_episode)
-        padvantages = np.array(advantages_episode)
-        pusersx = np.array(userx_episode)
-        pworkoutxseries = np.array(workoutxseries_episode)
-        pdayseriesx = np.array(dayseriesx_episode)
+            advantages_episode = discount_rewards(advantages_episode)
+            dreward_episode = discount_rewards(np.array(reward_episode))
 
 
-        feed_dict = {
-            alw.reward_holder: preward,
-            alw.action_holder: paction,
-            alw.value_holder: pvalue,
-            alw.advantage_holder: padvantages
-            ,
-            alw.agent_day_series_input: pdayseriesx,
-            alw.agent_workout_series_input:pworkoutxseries,
-            alw.agent_user_vector_input:pusersx
-        }
+            preward = np.array(dreward_episode)
+            paction = np.array(action_index_episode)
+            pvalue = np.array(value_episode)
+            padvantages = np.array(advantages_episode)
+            pusersx = np.array(userx_episode)
+            pworkoutxseries = np.array(workoutxseries_episode)
+            pdayseriesx = np.array(dayseriesx_episode)
 
 
-        results1 = sess.run([
-                             alw.gradient,
-                             alw.reward_holder,
-                             alw.action_holder,
-                             alw.value_holder], feed_dict=feed_dict)
+            feed_dict = {
+                alw.reward_holder: preward,
+                alw.action_holder: paction,
+                alw.value_holder: pvalue,
+                alw.advantage_holder: padvantages
+                ,
+                alw.agent_day_series_input: pdayseriesx,
+                alw.agent_workout_series_input:pworkoutxseries,
+                alw.agent_user_vector_input:pusersx
+            }
 
-        grads = results1[0]
 
-        for idx, grad in enumerate(grads):
-            gradBuffer[idx] += grad
+            results1 = sess.run([
+                                 alw.gradient,
+                                 alw.reward_holder,
+                                 alw.action_holder,
+                                 alw.value_holder], feed_dict=feed_dict)
 
-        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+            grads = results1[0]
+
+            for idx, grad in enumerate(grads):
+                gradBuffer[idx] += grad
+
+            feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
+            results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
 
 
