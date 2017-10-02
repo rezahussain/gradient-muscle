@@ -1170,7 +1170,6 @@ class Lift_NN():
             #-----------------------------------------------------------------------------
 
             self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent')
-            #self.tvars = [agent_lastA]
 
             self.gradient_holders = []
             for idx, var in enumerate(self.tvars):
@@ -1633,14 +1632,12 @@ def train_rl_agent():
                          alw.action_holder,
                          alw.value_holder], feed_dict=feed_dict)
 
-
-
     grads = results1[0]
 
 
     for idx, grad in enumerate(grads):
         gradBuffer[idx] += grad
-    
+
 
 
     r_history = []
