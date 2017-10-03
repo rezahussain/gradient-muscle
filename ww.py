@@ -1182,7 +1182,11 @@ class Lift_NN():
             self.gradient = tf.gradients(self.loss, self.tvars)
             var_norms = tf.global_norm(self.tvars)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
+
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 0.9)
+            #self.grad_n = tf.clip_by_norm(self.gradient_holders, 5)
+
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
             #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
 
@@ -1570,12 +1574,21 @@ def train_rl_agent():
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
                 # do_random_action = np.random.choice([True, False], p=a_dist)
+
+                do_random_action = False
+                oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
+                #oai_value = np.random.choice(list(enumerate(agent_softmax_choices)),p=agent_softmax_choices)
+                #oai_index = np.where(agent_softmax_choices==oai_value)
+                oai_human_readable_action = rl_all_possible_actions[oai_index]
+
                 if do_random_action:
                     human_readable_action = rai_human_readable_action
                     action_index = rai_index
                 else:
                     human_readable_action = oai_human_readable_action
                     action_index = oai_index
+
+
 
                 #print human_readable_action
 
