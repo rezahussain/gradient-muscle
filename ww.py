@@ -1130,10 +1130,10 @@ class Lift_NN():
             # then also calculate a policy
             # when updating the gradients for the policy, we take into account what the value function said
 
-            self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32)
-            self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32)
-            self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32)
-            self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32)
+            self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="reward_holder")
+            self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32,name="action_holder")
+            self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="value_holder")
+            self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="advantage_holder")
 
             # we concatenate all of the actions from each observation
             # this makes the index that each observed action would have in the concatenated array
@@ -1182,11 +1182,12 @@ class Lift_NN():
             self.gradient = tf.gradients(self.loss, self.tvars)
             var_norms = tf.global_norm(self.tvars)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient, 20)
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=40)
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
             #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
 
-            self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
-            #self.update_batch = optimizer.apply_gradients(zip(self.grad_n, self.tvars))
+            #self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
+            self.update_batch = optimizer.apply_gradients(zip(self.grad_n, self.tvars))
 
 
         #------------------------------------------------------------------------------
@@ -1564,7 +1565,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 1.0 #float(aepoch)/float(NUM_EPOCHS)
+                percent_done = .95 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1652,12 +1653,25 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
+        feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
+        '''
+        feed_dict[alw.agent_day_series_input]= pdayseriesx
+        feed_dict[alw.agent_workout_series_input] = pworkoutxseries
+        feed_dict[alw.agent_user_vector_input] = pusersx
+
+        feed_dict[alw.reward_holder ] = preward
+        feed_dict[alw.action_holder ] = paction
+        feed_dict[alw.value_holder] = pvalue
+        feed_dict[alw.advantage_holder ] = padvantages
+        '''
+        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
+
         rpe = np.mean(reward_per_sample)
         reward_per_epoch.append(rpe)
         print rpe
 
-        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+
 
     print reward_per_epoch
 
