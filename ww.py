@@ -1050,25 +1050,25 @@ class Lift_NN():
 
 
         ##--------------------------------------------------------------------------------------------------------------
-        with tf.variable_scope('rl_agent'):
-            ##let the agent pick DONE as an exercise
-            ##when the env sees that it moves it to the next day
-            ##let the agent pick the exercises too
-            #just penalize it if it does a circuit
-            # can use the same setup as worldNN but diff output
 
+        ##let the agent pick DONE as an exercise
+        ##when the env sees that it moves it to the next day
+        ##let the agent pick the exercises too
+        #just penalize it if it does a circuit
+        # can use the same setup as worldNN but diff output
+
+
+        self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
+                                               name="agent_day_series_input")
+
+        self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
+        name = "agent_workout_series_input")
+
+        self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
+
+        with tf.variable_scope('rl_agent'):
             DAYSERIESWINDOWSIZE = 11
             WORKOUTSERIESWINDOWSIZE = 32
-
-            self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                                   name="agent_day_series_input")
-
-            self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-            name = "agent_workout_series_input")
-
-            self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
-
-
             ##--------change the below world to agent
             ##--------then setup the outputs
             ##do rl assembling of inputs later when u start coding the rl environment interaction code
@@ -1182,17 +1182,11 @@ class Lift_NN():
             self.gradient = tf.gradients(self.loss, self.tvars)
             var_norms = tf.global_norm(self.tvars)
 
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient, 20)
+            #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
 
-            # gradient clipping is probably the most crucial part
-            # without gradient clipping my polebox rl toy examples didnt
-            # seem to converge
-            # I see gradient clipping as a poormans version of
-            # proximal policy optimization
-
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
-
-            #self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
-            self.update_batch = optimizer.apply_gradients(zip(self.gradient, self.tvars))
+            self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
+            #self.update_batch = optimizer.apply_gradients(zip(self.grad_n, self.tvars))
 
 
         #------------------------------------------------------------------------------
@@ -1465,7 +1459,7 @@ def train_rl_agent():
             a_sample_name_batch = [a_sample_name]
             state = {}
 
-            EPISODE_LENGTH = 20
+            EPISODE_LENGTH = 10
 
 
             reward_episode = []
@@ -1570,7 +1564,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 0.99 #float(aepoch)/float(NUM_EPOCHS)
+                percent_done = 1.0 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1662,8 +1656,8 @@ def train_rl_agent():
         reward_per_epoch.append(rpe)
         print rpe
 
-        #feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-        #results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
+        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
     print reward_per_epoch
 
