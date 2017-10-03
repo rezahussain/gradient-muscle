@@ -1444,7 +1444,7 @@ def train_rl_agent():
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    NUM_EPOCHS = 600
+    NUM_EPOCHS = 10
 
     reward_per_epoch = []
 
@@ -1464,7 +1464,7 @@ def train_rl_agent():
             a_sample_name_batch = [a_sample_name]
             state = {}
 
-            EPISODE_LENGTH = 10
+            EPISODE_LENGTH = 20
 
 
             reward_episode = []
@@ -1569,7 +1569,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = float(aepoch)/float(NUM_EPOCHS)
+                percent_done = 0.99#float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1657,8 +1657,8 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
-            feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-            results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
+        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
         rpe = np.mean(reward_per_sample)
         reward_per_epoch.append(rpe)
