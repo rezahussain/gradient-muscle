@@ -1182,7 +1182,7 @@ class Lift_NN():
             self.gradient = tf.gradients(self.loss, self.tvars)
             var_norms = tf.global_norm(self.tvars)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=40)
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=20)
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
             #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
 
@@ -1663,13 +1663,15 @@ def train_rl_agent():
         feed_dict[alw.action_holder ] = paction
         feed_dict[alw.value_holder] = pvalue
         feed_dict[alw.advantage_holder ] = padvantages
+        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
         '''
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
-        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
 
-        rpe = np.mean(reward_per_sample)
-        reward_per_epoch.append(rpe)
-        print rpe
+
+        rps = np.mean(reward_per_sample)
+        reward_per_epoch.append(rps)
+        print str(rps) + " " + str(np.mean(reward_per_epoch))
+
 
 
 
@@ -1934,9 +1936,9 @@ def agent_world_take_step(state,action,ai_graph,sess):
         else:
             new_reward = latest_workout_force - start_workout_force
 
-            #if new_reward > 0:
-            reward = new_reward
-            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+            if new_reward > 0:
+                reward = new_reward
+                state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
             #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
             #      str(state_h["lastrewarddetectedindex"])
