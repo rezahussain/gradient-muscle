@@ -1184,7 +1184,7 @@ class Lift_NN():
 
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 0.9)
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 1)
             #self.grad_n = tf.clip_by_norm(self.gradient_holders, 5)
 
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
@@ -1444,7 +1444,7 @@ def train_rl_agent():
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    NUM_EPOCHS = 2000
+    NUM_EPOCHS = 200000
 
     reward_per_epoch = []
 
@@ -1577,8 +1577,6 @@ def train_rl_agent():
 
                 do_random_action = False
                 oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
-                #oai_value = np.random.choice(list(enumerate(agent_softmax_choices)),p=agent_softmax_choices)
-                #oai_index = np.where(agent_softmax_choices==oai_value)
                 oai_human_readable_action = rl_all_possible_actions[oai_index]
 
                 if do_random_action:
@@ -1666,24 +1664,24 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
-        feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
-        '''
-        feed_dict[alw.agent_day_series_input]= pdayseriesx
-        feed_dict[alw.agent_workout_series_input] = pworkoutxseries
-        feed_dict[alw.agent_user_vector_input] = pusersx
+            feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
+            '''
+            feed_dict[alw.agent_day_series_input]= pdayseriesx
+            feed_dict[alw.agent_workout_series_input] = pworkoutxseries
+            feed_dict[alw.agent_user_vector_input] = pusersx
+    
+            feed_dict[alw.reward_holder ] = preward
+            feed_dict[alw.action_holder ] = paction
+            feed_dict[alw.value_holder] = pvalue
+            feed_dict[alw.advantage_holder ] = padvantages
+            #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
+            '''
+            results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
-        feed_dict[alw.reward_holder ] = preward
-        feed_dict[alw.action_holder ] = paction
-        feed_dict[alw.value_holder] = pvalue
-        feed_dict[alw.advantage_holder ] = padvantages
-        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
-        '''
-        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
-
-        rps = np.mean(reward_per_sample)
-        reward_per_epoch.append(rps)
-        print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
+            rps = np.mean(reward_per_sample)
+            reward_per_epoch.append(rps)
+            print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
 
 
 
@@ -1949,9 +1947,9 @@ def agent_world_take_step(state,action,ai_graph,sess):
         else:
             new_reward = latest_workout_force - start_workout_force
 
-            if new_reward > 0:
-                reward = new_reward
-                state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+            #if new_reward > 0:
+            reward = new_reward
+            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
             #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
             #      str(state_h["lastrewarddetectedindex"])
