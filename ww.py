@@ -1189,7 +1189,7 @@ class Lift_NN():
             # I see gradient clipping as a poormans version of
             # proximal policy optimization
 
-            grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
+            grad_n, _ = tf.clip_by_global_norm(self.gradient, 1.0)
 
             self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
 
@@ -1437,19 +1437,27 @@ def train_rl_agent():
 
     #this shouldn't affect the stress model I think
     gradBuffer = sess.run(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent'))
-    for ix,grad in enumerate(gradBuffer):
-        gradBuffer[ix] = grad*0
 
-    #so lets use each of these real datatpoints as a starting point
-    #and let the model progress from there for a fixed number of steps?
-    shuffle(all_names)
+
+
 
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    NUM_EPOCHS = 3
+    NUM_EPOCHS = 600
+
+    reward_per_epoch = []
 
     for aepoch in range(NUM_EPOCHS):
+
+        # so lets use each of these real datatpoints as a starting point
+        # and let the model progress from there for a fixed number of steps?
+        shuffle(all_names)
+
+        for ix, grad in enumerate(gradBuffer):
+            gradBuffer[ix] = grad * 0
+
+        reward_per_sample = []
 
         for a_sample_name in all_names:
 
@@ -1477,10 +1485,10 @@ def train_rl_agent():
 
                     wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(a_sample_name_batch,1,for_human=True)
 
-                    print wo_y_batch_h.shape
-                    print wo_xseries_batch_h.shape
-                    print user_x_batch_h.shape
-                    print day_series_batch_h.shape
+                    #print wo_y_batch_h.shape
+                    #print wo_xseries_batch_h.shape
+                    #print user_x_batch_h.shape
+                    #print day_series_batch_h.shape
 
                     h_unit["dayseriesx"] = day_series_batch_h[0]
                     h_unit["userx"] = user_x_batch_h[0]
@@ -1561,7 +1569,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 0.10
+                percent_done = float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1573,7 +1581,7 @@ def train_rl_agent():
                     human_readable_action = oai_human_readable_action
                     action_index = oai_index
 
-                print human_readable_action
+                #print human_readable_action
 
                 # now pass the chosen action + state to the env
                 action = human_readable_action
@@ -1586,6 +1594,8 @@ def train_rl_agent():
                 userx_episode.append(m_unit["userx"][:])
                 workoutxseries_episode.append(m_unit["workoutxseries"][:])
 
+
+            reward_per_sample.extend(reward_episode)
 
 
             gamma = 0.99
@@ -1650,6 +1660,11 @@ def train_rl_agent():
             feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
             results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
+        rpe = np.mean(reward_per_sample)
+        reward_per_epoch.append(rpe)
+        print rpe
+
+    print reward_per_epoch
 
 
 
@@ -1680,226 +1695,244 @@ def agent_world_take_step(state,action,ai_graph,sess):
     action_planned_reps_human = (action.split(":")[1]).split("=")[1]
     action_weight_lbs_human = (action.split(":")[2]).split("=")[1]
 
-    # we will let nn calc rest intervals from
-    # times from the start of workout
+    state_h = state
+    reward = 0
 
-    exercise_name = action_exercise_name_human
-    reps_planned = action_planned_reps_human
-    reps_completed = -1
-    weight_lbs = action_weight_lbs_human
+    if action_exercise_name_human == "LEAVEGYM":
 
-    postset_heartrate = -1
-    went_to_failure = -1
-    did_pull_muscle = -1
+        #can just take the last day and add it again
 
-    used_lifting_gear = -1
-    unit_days_arr_human = a_day_series_h
-    velocities_m_per_s_arr = -1
+        a_day_series_h = np.append(a_day_series_h,copy.deepcopy(a_day_series_h[-1]))
 
-    workoutstep_for_predict_h = make_workout_step_human(
-        action_exercise_name_human,
-        action_planned_reps_human,
-        reps_completed,
-        weight_lbs,
+        #a_day_series_h.append(a_day_series_h[-1][:])
 
-        postset_heartrate,
-        went_to_failure,
-        did_pull_muscle,
-
-        used_lifting_gear,
-        unit_days_arr_human,
-        velocities_m_per_s_arr
-    )
-
-    #np array so u cant use append like above
-    a_workout_series_h = np.append(a_workout_series_h,workoutstep_for_predict_h)
-
-    #----------------------------------------------------------
-
-    # still need to pad and trim to max lengths
-    # ez to do, just remove 1 from the back if you are appending 1
-    # we dont have to do this (bc its only one item in the batch, so it can
-    # have any shape )
-    #  to pass it through the network
-    # but the network was trained with a certain length
-    # so we should structure the data simliar to how it was trained
-
-    a_workout_series_h = np.delete(a_workout_series_h,0)
-
-    #----------------------------------------------------------
-    #convert state to machine format
-
-    state_h = {}
-    state_h['dayseriesx'] = a_day_series_h
-    state_h['userx'] = a_user_x_h
-    state_h['workoutxseries'] = a_workout_series_h
-    state_h['workouty'] = {}
-
-    norm_vals = get_norm_values()
-    state_m = convert_human_unit_to_machine(state_h, norm_vals)
-
-    day_series_batch = [state_m["dayseriesx"]]
-    user_x_batch = [state_m["userx"]]
-    workout_series_batch = [state_m["workoutxseries"]]
-
-    day_series_batch = np.array(day_series_batch)
-    user_x_batch = np.array(user_x_batch)
-    workout_series_batch = np.array(workout_series_batch)
-
-    #---------------------------------------------------------
-    #put through graph
-    alw = ai_graph
-
-    #print workout_y_batch.shape
-    #print workout_series_batch.shape
-    #print user_x_batch.shape
-    #print day_series_batch.shape
-
-    results_of_action = sess.run([
-        alw.world_day_series_input,
-        alw.world_workout_series_input,
-        alw.world_y
-    ],
-
-    feed_dict={
-        alw.world_day_series_input: day_series_batch,
-        alw.world_workout_series_input: workout_series_batch,
-        alw.world_user_vector_input: user_x_batch
-    })
-
-    m_filled_workout_step = results_of_action[2][0]
-
-    h_filled_workout_step = make_h_workout_with_xh_ym(workoutstep_for_predict_h,m_filled_workout_step,a_day_series_h)
-
-    # remove the partial one we added to the end so we could predict
-    a_workout_series_h = np.delete(a_workout_series_h, len(a_workout_series_h)-1)
-
-    # append the filled one to the end
-    a_workout_series_h = np.append(a_workout_series_h, h_filled_workout_step)
-    
-    # make the new state with the filled result of the action
-    state_h = {}
-    state_h['dayseriesx'] = a_day_series_h
-    state_h['userx'] = a_user_x_h
-    state_h['workoutxseries'] = a_workout_series_h
-    state_h['workouty'] = {}
-    state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
-
-    #print a_workout_series_h[-1]
-
-    #now calculate reward from the last reward index----------------
-
-
-    # find max force for index
-    # compare to max force at latest index
-    # see if max force increases
-    # if it does, save the new lastrewarddetectedindex
-
-    # i think you should use the average velocity
-    # of completed reps instead of individual resps
-    # to calculate whether force increased
-    # this is because there is variance in the sensor measurements
-    # for deadlift, I think sometimes the rubber weights make it
-    # bounce a little and the bar speed sensor records that
-
-    # I am calculating continuous reward instead of end of episode reward
-    # bc I think it helps the rl agent learn exactly what is good
-    # discounted return doesnt provide the rl agent much info on what
-    # it did well if you just calculate the reward at the end
+        state_h['dayseriesx'] = state['dayseriesx']
+        state_h['userx'] = state['userx']
+        state_h['workoutxseries'] = state['workoutxseries']
 
 
 
-    # we store a last reward calculated index for each exercise
-    #so when calculating reward per exercise the reward is only calculated
-    #from that exercise
-    #aka dont see a force increase from benchpress when you do deadlift and count
-    #it as reward
+    if action_exercise_name_human != "LEAVEGYM":
+        # we will let nn calc rest intervals from
+        # times from the start of workout
+
+        exercise_name = action_exercise_name_human
+        reps_planned = action_planned_reps_human
+        reps_completed = -1
+        weight_lbs = action_weight_lbs_human
+
+        postset_heartrate = -1
+        went_to_failure = -1
+        did_pull_muscle = -1
+
+        used_lifting_gear = -1
+        unit_days_arr_human = a_day_series_h
+        velocities_m_per_s_arr = -1
+
+        workoutstep_for_predict_h = make_workout_step_human(
+            action_exercise_name_human,
+            action_planned_reps_human,
+            reps_completed,
+            weight_lbs,
+
+            postset_heartrate,
+            went_to_failure,
+            did_pull_muscle,
+
+            used_lifting_gear,
+            unit_days_arr_human,
+            velocities_m_per_s_arr
+        )
+
+        #np array so u cant use append like above
+        a_workout_series_h = np.append(a_workout_series_h,workoutstep_for_predict_h)
+
+        #----------------------------------------------------------
+
+        # still need to pad and trim to max lengths
+        # ez to do, just remove 1 from the back if you are appending 1
+        # we dont have to do this (bc its only one item in the batch, so it can
+        # have any shape )
+        #  to pass it through the network
+        # but the network was trained with a certain length
+        # so we should structure the data simliar to how it was trained
+
+        a_workout_series_h = np.delete(a_workout_series_h,0)
+
+        #----------------------------------------------------------
+        #convert state to machine format
+
+        state_h = {}
+        state_h['dayseriesx'] = a_day_series_h
+        state_h['userx'] = a_user_x_h
+        state_h['workoutxseries'] = a_workout_series_h
+        state_h['workouty'] = {}
+
+        norm_vals = get_norm_values()
+        state_m = convert_human_unit_to_machine(state_h, norm_vals)
+
+        day_series_batch = [state_m["dayseriesx"]]
+        user_x_batch = [state_m["userx"]]
+        workout_series_batch = [state_m["workoutxseries"]]
+
+        day_series_batch = np.array(day_series_batch)
+        user_x_batch = np.array(user_x_batch)
+        workout_series_batch = np.array(workout_series_batch)
+
+        #---------------------------------------------------------
+        #put through graph
+        alw = ai_graph
+
+        #print workout_y_batch.shape
+        #print workout_series_batch.shape
+        #print user_x_batch.shape
+        #print day_series_batch.shape
+
+        results_of_action = sess.run([
+            alw.world_day_series_input,
+            alw.world_workout_series_input,
+            alw.world_y
+        ],
+
+        feed_dict={
+            alw.world_day_series_input: day_series_batch,
+            alw.world_workout_series_input: workout_series_batch,
+            alw.world_user_vector_input: user_x_batch
+        })
+
+        m_filled_workout_step = results_of_action[2][0]
+
+        h_filled_workout_step = make_h_workout_with_xh_ym(workoutstep_for_predict_h,m_filled_workout_step,a_day_series_h)
+
+        # remove the partial one we added to the end so we could predict
+        a_workout_series_h = np.delete(a_workout_series_h, len(a_workout_series_h)-1)
+
+        # append the filled one to the end
+        a_workout_series_h = np.append(a_workout_series_h, h_filled_workout_step)
+
+        # make the new state with the filled result of the action
+        state_h = {}
+        state_h['dayseriesx'] = a_day_series_h
+        state_h['userx'] = a_user_x_h
+        state_h['workoutxseries'] = a_workout_series_h
+        state_h['workouty'] = {}
+        state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
+
+        #print a_workout_series_h[-1]
+
+        #now calculate reward from the last reward index----------------
+
+
+        # find max force for index
+        # compare to max force at latest index
+        # see if max force increases
+        # if it does, save the new lastrewarddetectedindex
+
+        # i think you should use the average velocity
+        # of completed reps instead of individual resps
+        # to calculate whether force increased
+        # this is because there is variance in the sensor measurements
+        # for deadlift, I think sometimes the rubber weights make it
+        # bounce a little and the bar speed sensor records that
+
+        # I am calculating continuous reward instead of end of episode reward
+        # bc I think it helps the rl agent learn exactly what is good
+        # discounted return doesnt provide the rl agent much info on what
+        # it did well if you just calculate the reward at the end
 
 
 
-    rl_exercise_chosen_h = action_exercise_name_human
-    no_reward_just_set_last_reward_detected_index = False
-    start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
-
-    if start_index is None:
-        no_reward_just_set_last_reward_detected_index = True
-
-    start_workout_force = None
-    latest_workout_force = None
+        # we store a last reward calculated index for each exercise
+        #so when calculating reward per exercise the reward is only calculated
+        #from that exercise
+        #aka dont see a force increase from benchpress when you do deadlift and count
+        #it as reward
 
 
 
-    # have to do this bc the timeseries length is a fixed moving window
-    # so when we move the window we need to decrement the lastrewardindex
-    # for each exercise
-    # bc by the time we have reached here we have moved the window
-
-    keys = state_h["lastrewarddetectedindexes"]
-    for akey in keys:
-        checkNone = state_h["lastrewarddetectedindexes"][akey]
-        if checkNone is not None:
-            state_h["lastrewarddetectedindexes"][akey] = state_h["lastrewarddetectedindexes"][akey] - 1
-            if state_h["lastrewarddetectedindexes"][akey] < 0:
-                state_h["lastrewarddetectedindexes"][akey] = None
-
-
-    if not no_reward_just_set_last_reward_detected_index:
-
+        rl_exercise_chosen_h = action_exercise_name_human
+        no_reward_just_set_last_reward_detected_index = False
         start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
 
-        start_workout_step = state_h["workoutxseries"][start_index]
-        start_workout_reps_completed = start_workout_step["reps_completed"]
-        start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
-        start_workout_velocities = []
-        for iiii in range(int(math.floor(start_workout_reps_completed))):
-            a_velocity = start_workout_step["velocities_arr_" + str(iiii)]
-            start_workout_velocities.append(a_velocity)
-
-        # when we make the train units that we bootstrap this with
-        # we pad the units
-        # so here when it is first bootstrapped it can see those padded values here
-        # they will show up as nan
-        # if that happens here I suppose we just set the index to calculate the next
-        # reward from
+        if start_index is None:
+            no_reward_just_set_last_reward_detected_index = True
 
         start_workout_force = None
-        no_reward_just_set_last_reward_detected_index = False
-        if len(start_workout_velocities)==0:
-            no_reward_just_set_last_reward_detected_index = True
+        latest_workout_force = None
+
+
+
+        # have to do this bc the timeseries length is a fixed moving window
+        # so when we move the window we need to decrement the lastrewardindex
+        # for each exercise
+        # bc by the time we have reached here we have moved the window
+
+        keys = state_h["lastrewarddetectedindexes"]
+        for akey in keys:
+            checkNone = state_h["lastrewarddetectedindexes"][akey]
+            if checkNone is not None:
+                state_h["lastrewarddetectedindexes"][akey] = state_h["lastrewarddetectedindexes"][akey] - 1
+                if state_h["lastrewarddetectedindexes"][akey] < 0:
+                    state_h["lastrewarddetectedindexes"][akey] = None
+
+
+        if not no_reward_just_set_last_reward_detected_index:
+
+            start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+
+            start_workout_step = state_h["workoutxseries"][start_index]
+            start_workout_reps_completed = start_workout_step["reps_completed"]
+            start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
+            start_workout_velocities = []
+            for iiii in range(int(math.floor(start_workout_reps_completed))):
+                a_velocity = float(start_workout_step["velocities_arr_" + str(iiii)])
+                start_workout_velocities.append(a_velocity)
+
+            # when we make the train units that we bootstrap this with
+            # we pad the units
+            # so here when it is first bootstrapped it can see those padded values here
+            # they will show up as nan
+            # if that happens here I suppose we just set the index to calculate the next
+            # reward from
+
+            start_workout_force = None
+            no_reward_just_set_last_reward_detected_index = False
+            if len(start_workout_velocities)==0:
+                no_reward_just_set_last_reward_detected_index = True
+            else:
+                start_workout_average_velocity = np.mean(start_workout_velocities)
+                start_workout_force = float(start_workout_average_velocity)*float(start_workout_weight_lbs)
+
+
+            latest_workout_step = state_h["workoutxseries"][-1]
+            latest_workout_reps_completed = latest_workout_step["reps_completed"]
+            latest_workout_weight_lbs = float(latest_workout_step["weight_lbs"])
+            latest_workout_velocities = []
+            for iiii in range(int(math.floor(latest_workout_reps_completed))):
+                a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
+                latest_workout_velocities.append(a_velocity)
+            latest_workout_average_velocity = np.mean(latest_workout_velocities)
+            latest_workout_force = latest_workout_average_velocity*latest_workout_weight_lbs
+
+            # force here units are in lbs per meters/second oh boy
+            # should convert fully to metric but don't really need to
+            # bc rl agent doesnt really care about what units
+            # reward is in
+
+        reward = 0
+        if no_reward_just_set_last_reward_detected_index:
+            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"])-1
         else:
-            start_workout_average_velocity = np.mean(start_workout_velocities)
-            start_workout_force = start_workout_average_velocity*start_workout_weight_lbs
+            new_reward = latest_workout_force - start_workout_force
+            if new_reward > 0:
+                reward = new_reward
+                state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+            #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
+            #      str(state_h["lastrewarddetectedindex"])
+            #print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
+            #print new_reward
 
-
-        latest_workout_step = state_h["workoutxseries"][-1]
-        latest_workout_reps_completed = latest_workout_step["reps_completed"]
-        latest_workout_weight_lbs = float(latest_workout_step["weight_lbs"])
-        latest_workout_velocities = []
-        for iiii in range(int(math.floor(latest_workout_reps_completed))):
-            a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
-            latest_workout_velocities.append(a_velocity)
-        latest_workout_average_velocity = np.mean(latest_workout_velocities)
-        latest_workout_force = latest_workout_average_velocity*latest_workout_weight_lbs
-
-        # force here units are in lbs per meters/second oh boy
-        # should convert fully to metric but don't really need to
-        # bc rl agent doesnt really care about what units
-        # reward is in
-
-    reward = 0
-    if no_reward_just_set_last_reward_detected_index:
-        state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"])-1
-    else:
-        new_reward = latest_workout_force - start_workout_force
-        if new_reward > 0:
-            reward = new_reward
-            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
-        #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
-        #      str(state_h["lastrewarddetectedindex"])
-        print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
-        #print new_reward
-
-    ABC = None
+        ABC = None
 
 
     return state_h,reward
