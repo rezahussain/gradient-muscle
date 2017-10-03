@@ -1182,7 +1182,7 @@ class Lift_NN():
             self.gradient = tf.gradients(self.loss, self.tvars)
             var_norms = tf.global_norm(self.tvars)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=20)
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
             #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
 
@@ -1670,7 +1670,7 @@ def train_rl_agent():
 
         rps = np.mean(reward_per_sample)
         reward_per_epoch.append(rps)
-        print str(rps) + " " + str(np.mean(reward_per_epoch))
+        print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
 
 
 
