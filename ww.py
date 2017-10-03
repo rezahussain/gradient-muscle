@@ -1189,7 +1189,7 @@ class Lift_NN():
             # I see gradient clipping as a poormans version of
             # proximal policy optimization
 
-            grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
+            grad_n, _ = tf.clip_by_global_norm(self.gradient, 10.0)
 
             self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
 
@@ -1657,12 +1657,12 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
-        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
-
         rpe = np.mean(reward_per_sample)
         reward_per_epoch.append(rpe)
         print rpe
+
+        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
+        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
     print reward_per_epoch
 
@@ -1924,9 +1924,11 @@ def agent_world_take_step(state,action,ai_graph,sess):
             state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"])-1
         else:
             new_reward = latest_workout_force - start_workout_force
-            if new_reward > 0:
-                reward = new_reward
-                state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+
+            #if new_reward > 0:
+            reward = new_reward
+            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+
             #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
             #      str(state_h["lastrewarddetectedindex"])
             #print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
