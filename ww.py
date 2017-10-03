@@ -1189,7 +1189,7 @@ class Lift_NN():
             # I see gradient clipping as a poormans version of
             # proximal policy optimization
 
-            grad_n, _ = tf.clip_by_global_norm(self.gradient, 1.0)
+            grad_n, _ = tf.clip_by_global_norm(self.gradient, 20.0)
 
             self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
 
@@ -1569,7 +1569,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 0.99#float(aepoch)/float(NUM_EPOCHS)
+                percent_done = 0.99 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
