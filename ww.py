@@ -1189,9 +1189,10 @@ class Lift_NN():
             # I see gradient clipping as a poormans version of
             # proximal policy optimization
 
-            grad_n, _ = tf.clip_by_global_norm(self.gradient, 10.0)
+            self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
 
-            self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
+            #self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
+            self.update_batch = optimizer.apply_gradients(zip(self.gradient, self.tvars))
 
 
         #------------------------------------------------------------------------------
@@ -1444,7 +1445,7 @@ def train_rl_agent():
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    NUM_EPOCHS = 10
+    NUM_EPOCHS = 2000
 
     reward_per_epoch = []
 
@@ -1661,8 +1662,8 @@ def train_rl_agent():
         reward_per_epoch.append(rpe)
         print rpe
 
-        feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
-        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+        #feed_dict = dict(zip(alw.gradient_holders,gradBuffer))
+        #results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
     print reward_per_epoch
 
