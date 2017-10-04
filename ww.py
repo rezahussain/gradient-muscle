@@ -1629,15 +1629,21 @@ def train_rl_agent():
                 return discounted_r
 
 
-            dvalue_episode = discount_rewards(np.array(value_episode))
+            # https://arxiv.org/pdf/1506.02438.pdf
+            # advantage function page 2
+            # A(s,a) = Q(s,a)-V(s)
+            # measures whether or not the action is better or worse than the policys default behavior
+            # A(s,a) is not known and has to be estimated
+            # page 4 you can use an advantage estimator
+            # Aestimate = r[t] + (gamma * v[t+1]) - v[t]
+            # below we are basically doing
+            # number 18 from page 5
             advantages_episode = []
             advantages_episode = np.array(advantages_episode)
-            last_value = value_episode[0]
-            for i in range(len(reward_episode)):
-                adv = reward_episode[i] + dvalue_episode[i] - last_value
-                last_value = value_episode[i]
+            for i in range(len(reward_episode)-1):
+                adv = reward_episode[i] + (gamma*value_episode[i+1]) - value_episode[i]
                 advantages_episode = np.append(advantages_episode, [adv])
-
+            advantages_episode = np.append(advantages_episode, [0])
 
             advantages_episode = discount_rewards(advantages_episode)
             dreward_episode = discount_rewards(np.array(reward_episode))
@@ -1676,17 +1682,6 @@ def train_rl_agent():
                 gradBuffer[idx] += grad
 
         feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
-        '''
-        feed_dict[alw.agent_day_series_input]= pdayseriesx
-        feed_dict[alw.agent_workout_series_input] = pworkoutxseries
-        feed_dict[alw.agent_user_vector_input] = pusersx
-
-        feed_dict[alw.reward_holder ] = preward
-        feed_dict[alw.action_holder ] = paction
-        feed_dict[alw.value_holder] = pvalue
-        feed_dict[alw.advantage_holder ] = padvantages
-        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
-        '''
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
 
@@ -1960,9 +1955,9 @@ def agent_world_take_step(state,action,ai_graph,sess):
         else:
             new_reward = latest_workout_force - start_workout_force
 
-            #if new_reward > 0:
-            reward = new_reward
-            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+            if new_reward > 0:
+                reward = new_reward
+                state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
             #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
             #      str(state_h["lastrewarddetectedindex"])
