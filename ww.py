@@ -1156,6 +1156,26 @@ class Lift_NN():
             indexes = tf.range(0, tf.shape(self.agent_y_policy)[0]) * tf.shape(self.agent_y_policy)[1] + self.action_holder
             # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
             responsible_outputs = tf.gather(tf.reshape(self.agent_y_policy, [-1]), indexes)
+
+            # so if the advantage is positive
+            # it means the action is better than what the policy would have chosen
+            # in that case we want to multiply the policy by the advantage so that
+            # it is that much more likely to pick the action that gave more advantage
+            # if the advantage is negative then it is worse than what the policy would
+            # have chosen, so we want to make it less likely to be picked by the policy
+            # so we multiply it by the policy
+
+            # we want to increase the mean
+            # bc advantages are derived from rewards
+            # and the advantage part cannot be adjusted here
+            # so it has to adjust the responsible outputs
+            # so when the advantage is negative to increase the mean
+            # we have to shrink the responsible output
+            # which makes it pick negative actions less
+
+            # so when the advantage is positive we want to increase the mean
+            # which means increasing the gradients of the responsible output
+
             self.policy_loss = -tf.reduce_mean(tf.log(responsible_outputs) * self.advantage_holder)
 
             # we look at the output of the policy, if it had low confidence in its choice
@@ -1165,7 +1185,7 @@ class Lift_NN():
             entropy = -tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
 
             # loss = 0.5 * value_loss + policy_loss - entropy*0.01
-            self.loss = 0.5 * self.value_loss + self.policy_loss - entropy * 0.01
+            self.loss = 0.5 * self.value_loss + self.policy_loss# - entropy * 0.01
 
             #-----------------------------------------------------------------------------
 
