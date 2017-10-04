@@ -1176,7 +1176,7 @@ class Lift_NN():
                 placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
                 self.gradient_holders.append(placeholder)
 
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
 
             #self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
             self.gradient = tf.gradients(self.loss, self.tvars)
@@ -1184,7 +1184,8 @@ class Lift_NN():
 
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
 
-            self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 1)
+            self.grad_n = self.gradient_holders
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 40)
             #self.grad_n = tf.clip_by_norm(self.gradient_holders, 5)
 
             #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
@@ -1444,7 +1445,7 @@ def train_rl_agent():
     #starting_point_name = []
     #starting_point_name.append(all_names[5])
 
-    NUM_EPOCHS = 200000
+    NUM_EPOCHS = 20000000
 
     reward_per_epoch = []
 
@@ -1560,8 +1561,18 @@ def train_rl_agent():
                 #now just use the index of the highest softmax value to lookup the action
                 #rl_all_possible_actions
 
-                oai_index = np.argmax(agent_softmax_choices)
+
+                oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
                 oai_human_readable_action = rl_all_possible_actions[oai_index]
+
+
+                #i think none of the probabilities ^^ are allowed to be zero
+                    #thats y u get the error then it collapses
+                #need to do a check for that
+
+
+                #oai_index = np.argmax(agent_softmax_choices)
+                #oai_human_readable_action = rl_all_possible_actions[oai_index]
 
                 rai_human_readable_action = np.random.choice(rl_all_possible_actions)
                 rai_index = rl_all_possible_actions.index(rai_human_readable_action)
@@ -1569,15 +1580,15 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = .95 #float(aepoch)/float(NUM_EPOCHS)
+                percent_done = .90 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
                 # do_random_action = np.random.choice([True, False], p=a_dist)
 
-                do_random_action = False
-                oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
-                oai_human_readable_action = rl_all_possible_actions[oai_index]
+                #do_random_action = False
+                #oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
+                #oai_human_readable_action = rl_all_possible_actions[oai_index]
 
                 if do_random_action:
                     human_readable_action = rai_human_readable_action
@@ -1664,24 +1675,24 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
-            feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
-            '''
-            feed_dict[alw.agent_day_series_input]= pdayseriesx
-            feed_dict[alw.agent_workout_series_input] = pworkoutxseries
-            feed_dict[alw.agent_user_vector_input] = pusersx
-    
-            feed_dict[alw.reward_holder ] = preward
-            feed_dict[alw.action_holder ] = paction
-            feed_dict[alw.value_holder] = pvalue
-            feed_dict[alw.advantage_holder ] = padvantages
-            #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
-            '''
-            results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+        feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
+        '''
+        feed_dict[alw.agent_day_series_input]= pdayseriesx
+        feed_dict[alw.agent_workout_series_input] = pworkoutxseries
+        feed_dict[alw.agent_user_vector_input] = pusersx
+
+        feed_dict[alw.reward_holder ] = preward
+        feed_dict[alw.action_holder ] = paction
+        feed_dict[alw.value_holder] = pvalue
+        feed_dict[alw.advantage_holder ] = padvantages
+        #results1 = sess.run([alw.grad_n], feed_dict=feed_dict)
+        '''
+        results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
 
-            rps = np.mean(reward_per_sample)
-            reward_per_epoch.append(rps)
-            print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
+        rps = np.mean(reward_per_sample)
+        reward_per_epoch.append(rps)
+        print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
 
 
 
@@ -1898,9 +1909,11 @@ def agent_world_take_step(state,action,ai_graph,sess):
                     state_h["lastrewarddetectedindexes"][akey] = None
 
 
-        if not no_reward_just_set_last_reward_detected_index:
+        if no_reward_just_set_last_reward_detected_index == False:
 
             start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+
+            #if start_index
 
             start_workout_step = state_h["workoutxseries"][start_index]
             start_workout_reps_completed = start_workout_step["reps_completed"]
