@@ -1618,6 +1618,7 @@ def train_rl_agent():
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
                 # do_random_action = np.random.choice([True, False], p=a_dist)
 
+
                 #do_random_action = False
                 #oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
                 #oai_human_readable_action = rl_all_possible_actions[oai_index]
