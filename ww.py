@@ -1633,6 +1633,7 @@ def train_rl_agent():
 
 
                 #print human_readable_action
+                
 
                 # now pass the chosen action + state to the env
                 action = human_readable_action
