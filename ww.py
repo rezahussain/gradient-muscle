@@ -1176,7 +1176,7 @@ class Lift_NN():
                 placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
                 self.gradient_holders.append(placeholder)
 
-            optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
+            optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
 
             #self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
             self.gradient = tf.gradients(self.loss, self.tvars)
@@ -1580,7 +1580,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = .90 #float(aepoch)/float(NUM_EPOCHS)
+                percent_done = .99 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
