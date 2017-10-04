@@ -1148,7 +1148,7 @@ class Lift_NN():
 
             value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
             responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
-            self.value_loss = -tf.reduce_mean(tf.squared_difference(self.reward_holder, responsible_values))
+            self.value_loss = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values))
 
             # do the same for the policy
             # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1638,6 +1638,8 @@ def train_rl_agent():
             # Aestimate = r[t] + (gamma * v[t+1]) - v[t]
             # below we are basically doing
             # number 18 from page 5
+            # doing number 18 bc it has lower variance
+
             advantages_episode = []
             advantages_episode = np.array(advantages_episode)
             for i in range(len(reward_episode)-1):
