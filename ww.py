@@ -1148,7 +1148,7 @@ class Lift_NN():
 
             value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
             responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
-            self.value_loss = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values))
+            self.value_loss = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values))
 
             # do the same for the policy
             # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1162,7 +1162,7 @@ class Lift_NN():
             # like all the choices were rated almost the same number
             # and lets say something bad happened or good happened
             # dont adjust the gradients that much
-            entropy = - tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
+            entropy = -tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
 
             # loss = 0.5 * value_loss + policy_loss - entropy*0.01
             self.loss = 0.5 * self.value_loss + self.policy_loss - entropy * 0.01
