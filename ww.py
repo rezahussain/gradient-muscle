@@ -1176,7 +1176,7 @@ class Lift_NN():
             # so when the advantage is positive we want to increase the mean
             # which means increasing the gradients of the responsible output
 
-            self.policy_loss = -tf.reduce_mean(tf.log(responsible_outputs) * self.advantage_holder)
+            self.policy_loss = -tf.reduce_sum(tf.log(responsible_outputs) * self.advantage_holder)
 
             # we look at the output of the policy, if it had low confidence in its choice
             # like all the choices were rated almost the same number
@@ -1184,7 +1184,18 @@ class Lift_NN():
             # dont adjust the gradients that much
             entropy = -tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
 
-            # loss = 0.5 * value_loss + policy_loss - entropy*0.01
+
+            # so we want to spend some of the step to increase our value estimator
+            # bc this helps make a better advantage estimator
+            # but not all, we want the focus of the gradients to a better policy
+            # so we take value gradients times half
+            # I ommitted entropy here
+            # the reasoning is that here I have 8000 actions
+            # in that one guy's doom example he only had 3 actions
+            # the confidence of any one value in the list of 8000 is not gonna be
+            # significantly higher than the rest so the entropy value
+            # will always signify the model is unconfident
+            # so I omit it
             self.loss = 0.5 * self.value_loss + self.policy_loss# - entropy * 0.01
 
             #-----------------------------------------------------------------------------
