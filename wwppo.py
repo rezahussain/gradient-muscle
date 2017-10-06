@@ -1095,7 +1095,12 @@ class Lift_NN():
                 return agent_y_policy,agent_value
 
 
-        agent_policy1,agent_value1 = add_rl_agent_with_scope("rl_agent",
+        agent_policy1,agent_value1 = add_rl_agent_with_scope("rl_agent1",
+                                                             self.agent_workout_series_input,
+                                                             self.agent_day_series_input,
+                                                             self.agent_user_vector_input)
+
+        agent_policy2,agent_value2 = add_rl_agent_with_scope("rl_agent2",
                                                              self.agent_workout_series_input,
                                                              self.agent_day_series_input,
                                                              self.agent_user_vector_input)
@@ -1182,7 +1187,7 @@ class Lift_NN():
 
         # -----------------------------------------------------------------------------
 
-        self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent')
+        self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent1')
 
         self.gradient_holders = []
         for idx, var in enumerate(self.tvars):
