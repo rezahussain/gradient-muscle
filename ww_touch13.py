@@ -22,9 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
-# contact info:
-# https://www.facebook.com/reza.hussain.98
-# reza@dormantlabs.com
+
+#contact info:
+#https://www.facebook.com/reza.hussain.98
+#reza@dormantlabs.com
 
 
 import copy
@@ -39,31 +40,34 @@ import calendar
 import math
 import CONFIG as CONFIG
 
+
+
 jsonfilenames = os.listdir(CONFIG.CONFIG_RAW_JSON_PATH)
 
 jsonfilenames.sort()
 
+
 jsonobjects = []
 
 for i in range(len(jsonfilenames)):
-    d = open(CONFIG.CONFIG_RAW_JSON_PATH + jsonfilenames[i])
+    d = open(CONFIG.CONFIG_RAW_JSON_PATH+jsonfilenames[i])
     o = json.load(d)
     jsonobjects.append(o)
 
-# we build one datapoint for each workoutday
-# it consists of
-# the workout
-# then the last workout
-# then all of the day vectors on the side in the range
-# so we build a range for each datapoint
-# based off of the workout lookback
+#we build one datapoint for each workoutday
+#it consists of
+#the workout
+#then the last workout
+#then all of the day vectors on the side in the range
+#so we build a range for each datapoint
+#based off of the workout lookback
 
 
 workout_indexes = []
 
 for i in range(len(jsonobjects)):
     jo = jsonobjects[i]
-    # print jo['user_vector']
+    #print jo['user_vector']
     if len(jo['workout_vector_arr']) > 0:
         workout_indexes.append(i)
 
@@ -74,49 +78,47 @@ for i in range(len(workout_indexes)):
     behind = workout_indexes[:i]
     if len(behind) > CONFIG.CONFIG_WORKOUT_LOOKBACK:
         end = workout_indexes[i]
-        start = workout_indexes[i - CONFIG.CONFIG_WORKOUT_LOOKBACK]
-        workout_ranges.append([start, end])
-        # if i-CONFIG_WORKOUT_LOOKBACK >= 0:
-        #    workout_ranges.append([i-CONFIG_WORKOUT_LOOKBACK,i])
+        start = workout_indexes[i-CONFIG.CONFIG_WORKOUT_LOOKBACK]
+        workout_ranges.append([start,end])
+    #if i-CONFIG_WORKOUT_LOOKBACK >= 0:
+    #    workout_ranges.append([i-CONFIG_WORKOUT_LOOKBACK,i])
 
 
-# ---------------------------------------------------------->
+#---------------------------------------------------------->
 
-# DONE---need to build time vocabulary array
-# so from 1-12
-# 0 to 59
+#DONE---need to build time vocabulary array
+#so from 1-12
+#0 to 59
 def generate_time_vocabulary():
     times = []
-    for i in range(0, 24):
+    for i in range(0,24):
         h = i
         suffix = None
-        if h < 12:
+        if h<12:
             h = h
             suffix = "am"
         else:
-            h = h - 12
+            h = h-12
             suffix = "pm"
         hstr = str(h)
-        if len(hstr) < 2:
-            hstr = "0" + hstr
+        if len(hstr)<2:
+            hstr = "0"+hstr
         if hstr == "00":
             hstr = "12"
 
-        for yy in range(0, 60):
+        for yy in range(0,60):
             m = yy
             mstr = str(m)
-            if len(mstr) < 2:
-                mstr = "0" + mstr
-            times.append(hstr + ":" + mstr + suffix)
+            if len(mstr)<2:
+                mstr = "0"+mstr
+            times.append(hstr+":"+mstr+suffix)
     return times
-
-
 time_vocabulary = generate_time_vocabulary()
 
 time_vocabulary.append(-1)
-# print time_vocabulary
+#print time_vocabulary
 
-# ---------------------------------------------------------->
+#---------------------------------------------------------->
 # DONE---need to build a vocabulary for the pulled muscle name
 
 pulled_muscle_vocabulary = []
@@ -127,8 +129,10 @@ for i in workout_indexes:
         if set["pulled_muscle_name"] not in pulled_muscle_vocabulary:
             pulled_muscle_vocabulary.append(set["pulled_muscle_name"])
 
+
+
 # ---------------------------------------------------------->
-# need to build exercise name vocabulary
+#need to build exercise name vocabulary
 
 exercise_vocabulary = []
 for i in workout_indexes:
@@ -138,64 +142,66 @@ for i in workout_indexes:
         if set["exercise_name"] not in exercise_vocabulary:
             exercise_vocabulary.append(set["exercise_name"])
 
-# ---------------------------------------------------------->
+#---------------------------------------------------------->
 
-# need to find max workout_arr length so we can pad
-# all of the workouts to this length
-# so we can train in batches
-# bc batches need the same shapes
+#need to find max workout_arr length so we can pad
+#all of the workouts to this length
+#so we can train in batches
+#bc batches need the same shapes
 
 max_workout_range_array_len = 0
 
 for r in workout_ranges:
     workout_range_max_num_sets = 0
-    for xx in range(r[0], r[1] + 1):
+    for xx in range(r[0],r[1]+1):
         workout_range_max_num_sets += len(jsonobjects[xx]["workout_vector_arr"])
     if workout_range_max_num_sets > max_workout_range_array_len:
         max_workout_range_array_len = workout_range_max_num_sets
 
 Abc = None
 
-# ---------------------------------------------------------->
 
-# now we need to find max range day length so we can pad
-# all of the day series units to this length
-# again so we can train in batches
-# bc batches need the same shape
+#---------------------------------------------------------->
+
+#now we need to find max range day length so we can pad
+#all of the day series units to this length
+#again so we can train in batches
+#bc batches need the same shape
 
 max_day_range_array_len = 0
 for r in workout_ranges:
-    rdays = r[1] - r[0]
+    rdays = r[1]-r[0]
     if rdays > max_day_range_array_len:
         max_day_range_array_len = rdays
 
-# dk if this is a hack
-# bc it says 10 but then 11 shows up in the dataset
+#dk if this is a hack
+#bc it says 10 but then 11 shows up in the dataset
 max_day_range_array_len += 1
 
 Abc = None
 
-# ---------------------------------------------------------->
 
-# weight is in lbs
-CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
-# now we need to make all of the combos the RLAgent can pick
+#---------------------------------------------------------->
+
+#weight is in lbs
+CHOOSABLE_EXERCISES = ["squat","benchpress","deadlift"]
+#now we need to make all of the combos the RLAgent can pick
 rl_all_possible_actions = []
 for exercise_name in CHOOSABLE_EXERCISES:
     exercise_index = exercise_vocabulary.index(exercise_name)
-    for x in range(1, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
-        for y in range(45, CONFIG.CONFIG_MAX_WEIGHT, 5):
-            rl_all_possible_actions.append("exercise=" + exercise_name + ":reps=" + str(x) + ":weight=" + str(y))
+    for x in range(1,CONFIG.CONFIG_MAX_REPS_PER_SET+1):
+        for y in range(45,CONFIG.CONFIG_MAX_WEIGHT,5):
+            rl_all_possible_actions.append("exercise="+exercise_name+":reps="+str(x)+":weight="+str(y))
 
 rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:weight=0")
 
 ABC = None
 
+#---------------------------------------------------------->
 
-# ---------------------------------------------------------->
 
+def calc_days_since_last_workout(current_workout_yyyymmdd,last_workout_yyyymmdd):
 
-def calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd):
     cwyyyy = int(current_workout_yyyymmdd[0:4])
     cwmm = int(current_workout_yyyymmdd[4:6])
     cwdd = int(current_workout_yyyymmdd[6:8])
@@ -217,7 +223,8 @@ def calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd
     return days_since_last_workout
 
 
-# ---------------------------------------------------------->
+
+#---------------------------------------------------------->
 
 
 def make_workout_step_human(
@@ -250,10 +257,12 @@ def make_workout_step_human(
     packaged_workout["reps_completed"] = reps_completed
     packaged_workout["weight_lbs"] = weight_lbs
 
+
     packaged_workout["postset_heartrate"] = postset_heartrate
     packaged_workout["went_to_failure"] = went_to_failure
 
     packaged_workout["did_pull_muscle"] = did_pull_muscle
+
 
     packaged_workout["used_lifting_gear"] = used_lifting_gear
 
@@ -295,14 +304,15 @@ def make_workout_step_human(
     return packaged_workout
 
 
-# ---------------------------------------------------------->
+
+#---------------------------------------------------------->
 
 
 
 print workout_ranges
 
-
 def make_raw_units():
+
     for r in workout_ranges:
 
         # make a unit for each range
@@ -316,15 +326,14 @@ def make_raw_units():
 
         last_day_vector_workout_day_index = None
 
-        for xx in range(r[0], r[1] + 1):
+        for xx in range(r[0],r[1]+1):
 
             debug_name = jsonfilenames[xx]
             # build day array
             # print xx
             packaged_day = {}
             packaged_day["heart_rate_variability_rmssd"] = jsonobjects[xx]["day_vector"]["heart_rate_variability_rmssd"]
-            packaged_day["post_day_wearable_calories_burned"] = jsonobjects[xx]["day_vector"][
-                "post_day_wearable_calories_burned"]
+            packaged_day["post_day_wearable_calories_burned"] = jsonobjects[xx]["day_vector"]["post_day_wearable_calories_burned"]
             packaged_day["post_day_calories_in"] = jsonobjects[xx]["day_vector"]["post_day_calories_in"]
             packaged_day["post_day_protein_g"] = jsonobjects[xx]["day_vector"]["post_day_protein_g"]
             packaged_day["post_day_carbs_g"] = jsonobjects[xx]["day_vector"]["post_day_carbs_g"]
@@ -335,8 +344,7 @@ def make_raw_units():
             packaged_day["withings_body_water_percent"] = jsonobjects[xx]["day_vector"]["withings_body_water_percent"]
             packaged_day["withings_heart_rate_bpm"] = jsonobjects[xx]["day_vector"]["withings_heart_rate_bpm"]
             packaged_day["withings_bone_mass_percent"] = jsonobjects[xx]["day_vector"]["withings_bone_mass_percent"]
-            packaged_day["withings_pulse_wave_velocity_m_per_s"] = jsonobjects[xx]["day_vector"][
-                "withings_pulse_wave_velocity_m_per_s"]
+            packaged_day["withings_pulse_wave_velocity_m_per_s"] = jsonobjects[xx]["day_vector"]["withings_pulse_wave_velocity_m_per_s"]
 
             sbtap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
             packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
@@ -359,7 +367,7 @@ def make_raw_units():
                 if hour_string != -1:
                     hours = hour_string.split(":")[0]
                     minutes = hour_string.split(":")[1]
-                    result = float(hours) + (float(minutes) / 60.0)
+                    result = float(hours) + (float(minutes)/60.0)
                 else:
                     result = -1
                 return result
@@ -385,20 +393,21 @@ def make_raw_units():
             if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
                 last_day_vector_workout_day_index = xx
 
-            # ------------------------------------------------------------
+            #------------------------------------------------------------
 
             # if you modify the setup above make sure it is also modded
             # in the pad unit_days below
             unit_days.append(packaged_day)
 
-            # need to do it as one big one
-            # bc its easier to make sure that you do not include
-            # days that are ahead of the current work set
-            # but then still include days that are behind or at the current
-            # work set
+
+            #need to do it as one big one
+            #bc its easier to make sure that you do not include
+            #days that are ahead of the current work set
+            #but then still include days that are behind or at the current
+            #work set
 
 
-            if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
+            if len(jsonobjects[xx]["workout_vector_arr"])>0:
 
                 for ii in range(len(jsonobjects[xx]["workout_vector_arr"])):
 
@@ -414,7 +423,8 @@ def make_raw_units():
                     used_lifting_gear = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
                     vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
 
-                    # ------------------------------------------------------------------------
+
+                    #------------------------------------------------------------------------
 
 
                     packaged_workout = make_workout_step_human(
@@ -431,20 +441,22 @@ def make_raw_units():
                     )
                     unit_workouts.append(packaged_workout)
 
-                    # ------------------------------------------------------------------------
 
-                    # so basically for each set in the workout_vector array
-                    # we make a train unit with x and y
-                    # in this we hollow out the x
-                    # then use the unhollowed out x for the y
-                    # so the model can learn to predict the values we hollowed out
+                    #------------------------------------------------------------------------
+
+                    #so basically for each set in the workout_vector array
+                    #we make a train unit with x and y
+                    #in this we hollow out the x
+                    #then use the unhollowed out x for the y
+                    #so the model can learn to predict the values we hollowed out
 
                     unit_workout_clone = unit_workouts[:]
 
                     original = unit_workout_clone[-1]
                     copyx = copy.deepcopy(original)
-                    # copyx = unit_workout_clone[-1][:]
+                    #copyx = unit_workout_clone[-1][:]
                     copyy = copy.deepcopy(copyx)
+
 
                     # exercise_name categories
                     # reps
@@ -455,19 +467,21 @@ def make_raw_units():
                     copyx["went_to_failure"] = -1  # went to failure
                     copyx["did_pull_muscle"] = -1
 
-                    # for iii in range(len(pulled_muscle_vocabulary)):
+                    #for iii in range(len(pulled_muscle_vocabulary)):
                     #    copyx["category_pulled_muscle_"+str(iii)] = 0
 
                     # used_lifting_gear
                     # dayssincelastworkout
 
-                    # init the reps speeds to 0
+                    #init the reps speeds to 0
                     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        copyx["velocities_arr_" + str(iiii)] = 0
+                        copyx["velocities_arr_"+str(iiii)] = 0
 
                     unit_workout_clone[-1] = copyx
 
-                    # ---------------------------------------------------------------------
+
+
+                    #---------------------------------------------------------------------
 
                     # now pad the unit_workout_timeseries to the max range
                     # we have seen, so make it the length of the workout with the max number
@@ -499,11 +513,11 @@ def make_raw_units():
                     while len(unit_workout_clone_padded) < max_workout_range_array_len:
                         unit_workout_clone_padded.insert(0, padx)
 
-                    # ---------------------------------------------------------------------
+                    #---------------------------------------------------------------------
 
-                    # now pad the day series to the max range
-                    # we have seen, so we can train using batches
-                    # bc batches need the same size shapes
+                    #now pad the day series to the max range
+                    #we have seen, so we can train using batches
+                    #bc batches need the same size shapes
 
                     unit_days_padded = unit_days[:]
 
@@ -534,13 +548,15 @@ def make_raw_units():
                     packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
                     packaged_day_padded["days_since_last_workout"] = -1
 
+
                     while len(unit_days_padded) < max_day_range_array_len:
                         unit_days_padded.insert(0, packaged_day_padded)
 
-                    ABC = len(unit_days_padded)
-                    DEF = None
 
-                    # ---------------------------------------------------------------------
+                    ABC=len(unit_days_padded)
+                    DEF=None
+
+                    #---------------------------------------------------------------------
 
 
                     # only want to train it with at least one of
@@ -552,10 +568,11 @@ def make_raw_units():
 
                     has_heartrate = True
                     if (
-                                copyy["postset_heartrate"] == -1
+                        copyy["postset_heartrate"]==-1
 
                     ):
                         has_heartrate = False
+
 
                     has_velocities = False
                     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
@@ -567,15 +584,16 @@ def make_raw_units():
                     if has_velocities and has_heartrate:
                         has_valid_y = True
 
-                        # UPDATE: model gets horrible with either
-                        # need to use both or one or the other
+                        #UPDATE: model gets horrible with either
+                        #need to use both or one or the other
 
-                        # not sure how I feel about using either
-                        # instead of and
-                        # but some lifters will not record hr
-                        # might have to branch model out
-                        # but training it together gives it a better
-                        # understanding even with partial data
+                        #not sure how I feel about using either
+                        #instead of and
+                        #but some lifters will not record hr
+                        #might have to branch model out
+                        #but training it together gives it a better
+                        #understanding even with partial data
+
 
                     copyyy = {}
                     copyyy["reps_completed"] = copyy["reps_completed"]
@@ -587,6 +605,7 @@ def make_raw_units():
 
                     ABC = None
 
+
                     userjson = jsonobjects[xx]["user_vector"]
                     userx = {}
                     userx["genetically_gifted"] = userjson["genetically_gifted"]
@@ -597,7 +616,7 @@ def make_raw_units():
                     userx["height_inches"] = userjson["height_inches"]
                     userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
 
-                    # this is what we r gonna package for the NN
+                    #this is what we r gonna package for the NN
                     workoutxseries = unit_workout_clone_padded[:]
                     workouty = copy.deepcopy(copyyy)
                     dayseries = unit_days_padded[:]
@@ -609,10 +628,11 @@ def make_raw_units():
                     wholeTrainUnit["dayseriesx"] = dayseries
                     wholeTrainUnit["userx"] = userx
 
-                    savename = jsonobjects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
+                    savename = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]+"_"+str(ii)
 
                     if has_valid_y:
-                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + savename, "wb"))
+                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH +savename , "wb"))
+
 
 
 def get_raw_pickle_filenames():
@@ -621,32 +641,31 @@ def get_raw_pickle_filenames():
         picklefilenames.remove(".DS_Store")
     return picklefilenames
 
-
 def get_norm_values():
     normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
     return normVals
 
-
 def write_norm_values():
+
     picklefilenames = get_raw_pickle_filenames()
 
     unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilenames[0], "rb"))
 
-    dayseriesxmin = [9999.0] * len((unpickled_package["dayseriesx"][0]).keys())
-    dayseriesxmax = [-9999.0] * len((unpickled_package["dayseriesx"][0]).keys())
+    dayseriesxmin = [9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
+    dayseriesxmax = [-9999.0]*len((unpickled_package["dayseriesx"][0]).keys())
 
-    userxmin = [9999.0] * len((unpickled_package["userx"]).keys())
-    userxmax = [-9999.0] * len((unpickled_package["userx"]).keys())
+    userxmin = [9999.0]*len((unpickled_package["userx"]).keys())
+    userxmax = [-9999.0]*len((unpickled_package["userx"]).keys())
 
-    workoutxseriesmin = [9999.0] * len((unpickled_package["workoutxseries"][0]).keys())
-    workoutxseriesmax = [-9999.0] * len((unpickled_package["workoutxseries"][0]).keys())
+    workoutxseriesmin = [9999.0]*len((unpickled_package["workoutxseries"][0]).keys())
+    workoutxseriesmax = [-9999.0]*len((unpickled_package["workoutxseries"][0]).keys())
 
-    workoutymin = [9999.0] * len((unpickled_package["workouty"]).keys())
-    workoutymax = [-9999.0] * len((unpickled_package["workouty"]).keys())
+    workoutymin = [9999.0]*len((unpickled_package["workouty"]).keys())
+    workoutymax = [-9999.0]*len((unpickled_package["workouty"]).keys())
 
     for picklefilename in picklefilenames:
 
-        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilename, "rb"))
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH+picklefilename , "rb"))
 
         unpickledayseriesx = unpickled_package["dayseriesx"]
         for i in range(len(unpickledayseriesx)):
@@ -705,7 +724,9 @@ def write_norm_values():
     pickle.dump(normVals, open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "wb"))
 
 
-def normalize_unit(packaged_unit, norm_vals):
+
+def normalize_unit(packaged_unit,norm_vals):
+
     dayseriesxmin = norm_vals["dayseriesxmin"]
     dayseriesxmax = norm_vals["daysseriesxmax"]
     userxmin = norm_vals["userxmin"]
@@ -714,6 +735,7 @@ def normalize_unit(packaged_unit, norm_vals):
     workoutxseriesmax = norm_vals["workoutxseriesmax"]
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
+
 
     n_packaged_unit = {}
 
@@ -738,6 +760,7 @@ def normalize_unit(packaged_unit, norm_vals):
         n_unpickleddayseriesx.append(ndaystep)
     n_packaged_unit["dayseriesx"] = n_unpickleddayseriesx
 
+
     unpickledworkoutxseries = packaged_unit["workoutxseries"]
     n_unpickledworkoutxseries = []
     for i in range(len(unpickledworkoutxseries)):
@@ -759,6 +782,7 @@ def normalize_unit(packaged_unit, norm_vals):
         n_unpickledworkoutxseries.append(nworkoutstep)
     n_packaged_unit["workoutxseries"] = n_unpickledworkoutxseries
 
+
     unpickleduserx = packaged_unit["userx"]
     n_unpickleduserx = []
     unpickleduserxkeys = sorted(list(unpickleduserx.keys()))
@@ -775,6 +799,7 @@ def normalize_unit(packaged_unit, norm_vals):
             aval = 0
         n_unpickleduserx.append(aval)
     n_packaged_unit["userx"] = n_unpickleduserx
+
 
     unpickledworkouty = packaged_unit["workouty"]
     n_unpickledworkouty = []
@@ -796,7 +821,8 @@ def normalize_unit(packaged_unit, norm_vals):
     return n_packaged_unit
 
 
-def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h):
+def make_h_workout_with_xh_ym(workoutstep_xh,workoutstep_ym,days_series_arr_h):
+
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
 
     dayseriesxmin = norm_vals["dayseriesxmin"]
@@ -808,11 +834,12 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
 
+
     workoutstep_hollow_h = copy.deepcopy(workoutstep_xh)
 
     h_workout_timestep = workoutstep_hollow_h
 
-    ykeys = ["reps_completed", "postset_heartrate", "went_to_failure", "did_pull_muscle"]
+    ykeys = ["reps_completed","postset_heartrate","went_to_failure","did_pull_muscle"]
     # init the reps speeds to 0
     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
         ykeys.append("velocities_arr_" + str(iiii))
@@ -827,10 +854,14 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
         h_workout_timestep[akey] = unnormal
         ABC = None
 
+
+
+
     return h_workout_timestep
 
 
-def denormalize_workout_series_individual_timestep(n_workout_timestep, days_series_arr_h):
+def denormalize_workout_series_individual_timestep(n_workout_timestep,days_series_arr_h):
+
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
 
     dayseriesxmin = norm_vals["dayseriesxmin"]
@@ -842,7 +873,7 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep, days_seri
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
 
-    # first make a hollow object
+    #first make a hollow object
     exercise_name = -1
     reps_planned = -1
     reps_completed = -1
@@ -885,98 +916,101 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep, days_seri
     return h_workout_timestep
 
 
+
+
+
 def get_unit_names():
     picklefilenames = os.listdir(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
     if ".DS_Store" in picklefilenames:
         picklefilenames.remove(".DS_Store")
     return picklefilenames
 
-
 def get_human_unit_for_name(unit_name):
     unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + unit_name, "rb"))
     return unpickled_package
 
-
-def get_machine_unit_for_name(unit_name, norm_vals):
+def get_machine_unit_for_name(unit_name,norm_vals):
     human_unit = get_human_unit_for_name(unit_name)
-    machine_unit = normalize_unit(human_unit, norm_vals)
+    machine_unit = normalize_unit(human_unit,norm_vals)
     return machine_unit
 
-
-def convert_human_unit_to_machine(h_unit, norm_vals):
-    m_unit = normalize_unit(h_unit, norm_vals)
+def convert_human_unit_to_machine(h_unit,norm_vals):
+    m_unit = normalize_unit(h_unit,norm_vals)
     return m_unit
 
 
-# a_unit = getUnitForName(all_names[0])
+
+#a_unit = getUnitForName(all_names[0])
 
 class Lift_NN():
-    def __init__(self, a_dayseriesx, a_userx, a_workoutxseries, a_workouty, CHOSEN_BATCH_SIZE):
-        # --------------------------------------------------------------------------------------------------------------
+    def __init__(self,a_dayseriesx,a_userx,a_workoutxseries,a_workouty,CHOSEN_BATCH_SIZE):
+
+        #--------------------------------------------------------------------------------------------------------------
         with tf.variable_scope('stress_model'):
+
             self.WORLD_NUM_Y_OUTPUT = len(a_workouty)
 
             self.world_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                                         name="world_day_series_input")
+                                                   name="world_day_series_input")
             self.world_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-                                                             name="world_workout_series_input")
+            name = "world_workout_series_input")
 
-            self.world_user_vector_input = tf.placeholder(tf.float32, (None, len(a_userx)),
-                                                          name="world_user_vector_input")
+            self.world_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="world_user_vector_input")
             self.world_workout_y = tf.placeholder(tf.float32, (None, len(a_workouty)), name="world_workouty")
+
+
 
             with tf.variable_scope('world_workout_series_stageA'):
                 world_wo_cellA = tf.contrib.rnn.LSTMCell(100)
-                world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA,
-                                                                               self.world_workout_series_input,
-                                                                               dtype=tf.float32)
+                world_wo_rnn_outputsA, world_wo_rnn_stateA = tf.nn.dynamic_rnn(world_wo_cellA, self.world_workout_series_input,
+                                                                             dtype=tf.float32)
                 world_wo_batchA = tf.layers.batch_normalization(world_wo_rnn_outputsA)
 
             with tf.variable_scope('world_workout_series_stageB'):
                 world_wo_cellB = tf.contrib.rnn.LSTMCell(100)
                 world_wo_resB = tf.contrib.rnn.ResidualWrapper(world_wo_cellB)
                 world_wo_rnn_outputsB, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resB, world_wo_rnn_outputsA,
-                                                                               dtype=tf.float32)
+                                                                         dtype=tf.float32)
                 world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
+
 
             with tf.variable_scope('world_day_series_stageA'):
                 world_day_cellA = tf.contrib.rnn.LSTMCell(100)
-                world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA,
-                                                                                 self.world_day_series_input,
-                                                                                 dtype=tf.float32)
+                world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA, self.world_day_series_input,
+                                                                           dtype=tf.float32)
                 world_day_batchA = tf.layers.batch_normalization(world_day_rnn_outputsA)
 
             with tf.variable_scope('world_day_series_stageB'):
                 world_day_cellB = tf.contrib.rnn.LSTMCell(100)
                 world_day_resB = tf.contrib.rnn.ResidualWrapper(world_day_cellB)
-                world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB, world_day_rnn_outputsA,
-                                                                                 dtype=tf.float32)
+                world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB,world_day_rnn_outputsA,
+                                                                           dtype=tf.float32)
                 world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
 
             '''
             with tf.variable_scope('workout_input'):
                 world_cellA = tf.contrib.rnn.NASCell(50)
                 world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
-
+    
             with tf.variable_scope('day_input'):
                 world_cellAA = tf.contrib.rnn.NASCell(50)
                 world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
-
+    
             '''
 
             '''
             with tf.variable_scope('world_workout_series_stageA'):
                 world_cellA = tf.contrib.rnn.LSTMCell(1000)
                 world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
-
+    
             with tf.variable_scope('world_workout_series_stageB'):
                 world_cellB = tf.contrib.rnn.LSTMCell(1000)
                 world_rnn_outputsB, world_rnn_stateB = tf.nn.dynamic_rnn(world_cellB, world_rnn_outputsA, dtype=tf.float32)
-
+    
             with tf.variable_scope('world_day_series_stageA'):
                 world_cellAA = tf.contrib.rnn.LSTMCell(1000)
                 world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA, self.world_day_series_input, dtype=tf.float32)
-
+    
             with tf.variable_scope('world_day_series_stageB'):
                 world_cellBB = tf.contrib.rnn.LSTMCell(1000)
                 world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
@@ -985,12 +1019,12 @@ class Lift_NN():
             world_lastA = world_wo_rnn_outputsB[:, -1:]  # get last lstm output
             world_lastAA = world_day_rnn_outputsB[:, -1:]  # get last lstm output
 
-            # world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
-            # world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
+            #world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
+            #world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
 
 
-            # world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
-            # world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
+            #world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
+            #world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
 
             self.world_lastA = world_lastA
             self.world_lastAA = world_lastAA
@@ -999,222 +1033,208 @@ class Lift_NN():
             self.world_combined = tf.concat([world_lastA, world_lastAA], 2)
             self.world_b4shape = tf.shape(self.world_combined)
 
-            # so at setup time you need to know the shape
-            # otherwise it is none
-            # and the dense layer cannot be setup with a none dimension
-            self.world_combined_shaped = tf.reshape(self.world_combined, (CHOSEN_BATCH_SIZE, 100 + 100))
+            #so at setup time you need to know the shape
+            #otherwise it is none
+            #and the dense layer cannot be setup with a none dimension
+            self.world_combined_shaped = tf.reshape(self.world_combined,(CHOSEN_BATCH_SIZE,100+100))
             self.world_afshape = tf.shape(self.world_combined_shaped)
-            # tf.set_shape()
+            #tf.set_shape()
 
-            self.world_combined2 = tf.concat([self.world_combined_shaped, self.world_user_vector_input], 1)
-            world_dd = tf.layers.dense(self.world_combined2, self.WORLD_NUM_Y_OUTPUT)
+            self.world_combined2 = tf.concat([self.world_combined_shaped,self.world_user_vector_input],1)
+            world_dd = tf.layers.dense(self.world_combined2,self.WORLD_NUM_Y_OUTPUT)
 
             self.world_y = world_dd
 
             self.world_e = tf.losses.mean_squared_error(self.world_workout_y, self.world_y)
             self.world_operation = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(self.world_e)
 
+
         ##--------------------------------------------------------------------------------------------------------------
 
         ##let the agent pick DONE as an exercise
         ##when the env sees that it moves it to the next day
         ##let the agent pick the exercises too
-        # just penalize it if it does a circuit
+        #just penalize it if it does a circuit
         # can use the same setup as worldNN but diff output
 
 
         self.agent_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
-                                                     name="agent_day_series_input")
+                                               name="agent_day_series_input")
 
         self.agent_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
-                                                         name="agent_workout_series_input")
+        name = "agent_workout_series_input")
 
-        self.agent_user_vector_input = tf.placeholder(tf.float32, (None, len(a_userx)), name="agent_user_vector_input")
+        self.agent_user_vector_input = tf.placeholder(tf.float32 , (None,len(a_userx)),name="agent_user_vector_input")
 
+        with tf.variable_scope('rl_agent'):
+            DAYSERIESWINDOWSIZE = 11
+            WORKOUTSERIESWINDOWSIZE = 32
+            ##--------change the below world to agent
+            ##--------then setup the outputs
+            ##do rl assembling of inputs later when u start coding the rl environment interaction code
 
-
-        def add_rl_agent_with_scope(chosen_scope,a_workout_series_input,a_day_series_input,a_user_vector_input):
-
-            with tf.variable_scope(chosen_scope):
-                DAYSERIESWINDOWSIZE = 11
-                WORKOUTSERIESWINDOWSIZE = 32
-                ##--------change the below world to agent
-                ##--------then setup the outputs
-                ##do rl assembling of inputs later when u start coding the rl environment interaction code
-
-                AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
-
-                with tf.variable_scope('agent_workout_series_stage'):
-                    agent_cellA = tf.contrib.rnn.LSTMCell(250)
-                    agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, a_workout_series_input,
-                                                                             dtype=tf.float32)
-
-                with tf.variable_scope('agent_day_series_stage'):
-                    agent_cellAA = tf.contrib.rnn.LSTMCell(250)
-                    agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, a_day_series_input,
-                                                                               dtype=tf.float32)
-
-                agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
-                agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
-
-                agent_lastA = agent_lastA
-                agent_lastAA = agent_lastAA
-
-                # takes those two 250 and concats them to a 500
-                agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
-                agent_b4shape = tf.shape(agent_combined)
-
-                # so at setup time you need to know the shape
-                # otherwise it is none
-                # and the dense layer cannot be setup with a none dimension
-
-                # self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
+            self.AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
 
 
-                # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
-                # so in that case we pass the batch num to it
-                # so the end result becomes 10,500
-                # when we r doing rl agent decision making we use a batch of 1
-                # so in that case it looks like 1,500
+            with tf.variable_scope('agent_workout_series_stage'):
+                agent_cellA = tf.contrib.rnn.LSTMCell(250)
+                agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, self.agent_workout_series_input, dtype=tf.float32)
+
+            with tf.variable_scope('agent_day_series_stage'):
+                agent_cellAA = tf.contrib.rnn.LSTMCell(250)
+                agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, self.agent_day_series_input, dtype=tf.float32)
+
+            agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
+            agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
+
+            self.agent_lastA = agent_lastA
+            self.agent_lastAA = agent_lastAA
+
+            # takes those two 250 and concats them to a 500
+            self.agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
+            self.agent_b4shape = tf.shape(self.agent_combined)
+
+            #so at setup time you need to know the shape
+            #otherwise it is none
+            #and the dense layer cannot be setup with a none dimension
+
+            #self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
 
 
-                agent_combined_shaped = tf.reshape(agent_combined, (-1, 500))
-
-                # self.agent_combined_shaped = tf.reshape(self.agent_combined, [-1])
-
-                agent_afshape = tf.shape(agent_combined_shaped)
-
-                agent_combined2 = tf.concat([agent_combined_shaped, a_user_vector_input], 1)
-
-                agent_dd = tf.layers.dense(agent_combined2, AGENT_NUM_Y_OUTPUT)
-
-                dd3 = tf.contrib.layers.softmax(agent_dd)
-
-                agent_y_policy = dd3
-                agent_value = tf.layers.dense(agent_combined2, 1)
-                return agent_y_policy,agent_value
+            # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
+            #so in that case we pass the batch num to it
+            #so the end result becomes 10,500
+            #when we r doing rl agent decision making we use a batch of 1
+            #so in that case it looks like 1,500
 
 
-        agent_policy1,agent_value1 = add_rl_agent_with_scope("rl_agent",
-                                                             self.agent_workout_series_input,
-                                                             self.agent_day_series_input,
-                                                             self.agent_user_vector_input)
+            self.agent_combined_shaped = tf.reshape(self.agent_combined, (-1, 500))
+
+            #self.agent_combined_shaped = tf.reshape(self.agent_combined, [-1])
+
+            self.agent_afshape = tf.shape(self.agent_combined_shaped)
+
+            self.agent_combined2 = tf.concat([self.agent_combined_shaped,self.agent_user_vector_input],1)
+
+            agent_dd = tf.layers.dense(self.agent_combined2,self.AGENT_NUM_Y_OUTPUT)
+
+            dd3 = tf.contrib.layers.softmax(agent_dd)
+
+            self.agent_y_policy = dd3
+            self.agent_value = tf.layers.dense(self.agent_combined2, 1)
+
+            ##--------------------------------------------------------------------------------------------------------------
+
+            # RL setup is actor critic
+            # so we calc a value function of how good it is to be in a certain state
+            # then also calculate a policy
+            # when updating the gradients for the policy, we take into account what the value function said
+
+            self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="reward_holder")
+            self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32,name="action_holder")
+            self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="value_holder")
+            self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32,name="advantage_holder")
+
+            # we concatenate all of the actions from each observation
+            # this makes the index that each observed action would have in the concatenated array
+            # the first part makes the indexes for each 0 action index
+            # then adding_the action holder adds the actual action offset to each index of all of the
+
+            # tldr it makes an array of indexes for an array where all of the action arrays are concatenated
+            # this gives us the outputs to apply the reward function to
+
+            # aka get the value outputs so we can compare them to the rewards they gave
+            # and adjust them
+
+            value_indexes = tf.range(0, tf.shape(self.agent_value)[0]) * tf.shape(self.agent_value)[1]
+            responsible_values = tf.gather(tf.reshape(self.agent_value, [-1]), value_indexes)
+            self.value_loss = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values))
+
+            # do the same for the policy
+            # 'advantage' here is defined as how much better or worse the result was from the prediction
+
+            indexes = tf.range(0, tf.shape(self.agent_y_policy)[0]) * tf.shape(self.agent_y_policy)[1] + self.action_holder
+            # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
+            responsible_outputs = tf.gather(tf.reshape(self.agent_y_policy, [-1]), indexes)
+
+            # so if the advantage is positive
+            # it means the action is better than what the policy would have chosen
+            # in that case we want to multiply the policy by the advantage so that
+            # it is that much more likely to pick the action that gave more advantage
+            # if the advantage is negative then it is worse than what the policy would
+            # have chosen, so we want to make it less likely to be picked by the policy
+            # so we multiply it by the policy
+
+            # we want to increase the mean
+            # bc advantages are derived from rewards
+            # and the advantage part cannot be adjusted here
+            # so it has to adjust the responsible outputs
+            # so when the advantage is negative to increase the mean
+            # we have to shrink the responsible output
+            # which makes it pick negative actions less
+
+            # so when the advantage is positive we want to increase the mean
+            # which means increasing the gradients of the responsible output
+
+            self.policy_loss = -tf.reduce_sum(tf.log(responsible_outputs) * self.advantage_holder)
+
+            # we look at the output of the policy, if it had low confidence in its choice
+            # like all the choices were rated almost the same number
+            # and lets say something bad happened or good happened
+            # dont adjust the gradients that much
+            entropy = -tf.reduce_sum(self.agent_y_policy * tf.log(self.agent_y_policy))
 
 
-        self.agent_policy1 = agent_policy1
-        self.agent_value1 = agent_value1
+            # so we want to spend some of the step to increase our value estimator
+            # bc this helps make a better advantage estimator
+            # but not all, we want the focus of the gradients to a better policy
+            # so we take value gradients times half
+            # I ommitted entropy here
+            # the reasoning is that here I have 8000 actions
+            # in that one guy's doom example he only had 3 actions
+            # the confidence of any one value in the list of 8000 is not gonna be
+            # significantly higher than the rest so the entropy value
+            # will always signify the model is unconfident
+            # so I omit it
+            self.loss = 0.5 * self.value_loss + self.policy_loss # - entropy * 0.01
+
+            #-----------------------------------------------------------------------------
+
+            self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent')
+
+            self.gradient_holders = []
+            for idx, var in enumerate(self.tvars):
+                placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
+                self.gradient_holders.append(placeholder)
+
+            #optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
+            optimizer = tf.train.RMSPropOptimizer(learning_rate=1e-3)
+
+            #self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
+            self.gradient = tf.gradients(self.loss, self.tvars)
+            var_norms = tf.global_norm(self.tvars)
+
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
+
+            self.grad_n = self.gradient_holders
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 40)
+            #self.grad_n = tf.clip_by_norm(self.gradient_holders, 5)
+
+            #self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
+            #self.grad_n = tf.clip_by_value(self.gradient, -20,20)
+
+            #self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
+            self.update_batch = optimizer.apply_gradients(zip(self.grad_n, self.tvars))
 
 
-        ##--------------------------------------------------------------------------------------------------------------
-
-        # RL setup is actor critic
-        # so we calc a value function of how good it is to be in a certain state
-        # then also calculate a policy
-        # when updating the gradients for the policy, we take into account what the value function said
-
-        self.reward_holder = tf.placeholder(shape=[None], dtype=tf.float32, name="reward_holder")
-        self.action_holder = tf.placeholder(shape=[None], dtype=tf.int32, name="action_holder")
-        self.value_holder = tf.placeholder(shape=[None], dtype=tf.float32, name="value_holder")
-        self.advantage_holder = tf.placeholder(shape=[None], dtype=tf.float32, name="advantage_holder")
-
-        # we concatenate all of the actions from each observation
-        # this makes the index that each observed action would have in the concatenated array
-        # the first part makes the indexes for each 0 action index
-        # then adding_the action holder adds the actual action offset to each index of all of the
-
-        # tldr it makes an array of indexes for an array where all of the action arrays are concatenated
-        # this gives us the outputs to apply the reward function to
-
-        # aka get the value outputs so we can compare them to the rewards they gave
-        # and adjust them
-
-        value_indexes = tf.range(0, tf.shape(agent_value1)[0]) * tf.shape(agent_value1)[1]
-        responsible_values = tf.gather(tf.reshape(agent_value1, [-1]), value_indexes)
-        self.value_loss = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values))
-
-        # do the same for the policy
-        # 'advantage' here is defined as how much better or worse the result was from the prediction
-
-        indexes = tf.range(0, tf.shape(agent_policy1)[0]) * tf.shape(agent_policy1)[
-            1] + self.action_holder
-        # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
-        responsible_outputs = tf.gather(tf.reshape(agent_policy1, [-1]), indexes)
-
-        # so if the advantage is positive
-        # it means the action is better than what the policy would have chosen
-        # in that case we want to multiply the policy by the advantage so that
-        # it is that much more likely to pick the action that gave more advantage
-        # if the advantage is negative then it is worse than what the policy would
-        # have chosen, so we want to make it less likely to be picked by the policy
-        # so we multiply it by the policy
-
-        # we want to increase the mean
-        # bc advantages are derived from rewards
-        # and the advantage part cannot be adjusted here
-        # so it has to adjust the responsible outputs
-        # so when the advantage is negative to increase the mean
-        # we have to shrink the responsible output
-        # which makes it pick negative actions less
-
-        # so when the advantage is positive we want to increase the mean
-        # which means increasing the gradients of the responsible output
-
-        self.policy_loss = -tf.reduce_sum(tf.log(responsible_outputs) * self.advantage_holder)
-
-        # we look at the output of the policy, if it had low confidence in its choice
-        # like all the choices were rated almost the same number
-        # and lets say something bad happened or good happened
-        # dont adjust the gradients that much
-        entropy = -tf.reduce_sum(agent_policy1 * tf.log(agent_policy1))
-
-        # so we want to spend some of the step to increase our value estimator
-        # bc this helps make a better advantage estimator
-        # but not all, we want the focus of the gradients to a better policy
-        # so we take value gradients times half
-        # I ommitted entropy here
-        # the reasoning is that here I have 8000 actions
-        # in that one guy's doom example he only had 3 actions
-        # the confidence of any one value in the list of 8000 is not gonna be
-        # significantly higher than the rest so the entropy value
-        # will always signify the model is unconfident
-        # so I omit it
-        self.loss = 0.5 * self.value_loss + self.policy_loss  # - entropy * 0.01
-
-        # -----------------------------------------------------------------------------
-
-        self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent')
-
-        self.gradient_holders = []
-        for idx, var in enumerate(self.tvars):
-            placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
-            self.gradient_holders.append(placeholder)
-
-        # optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=1e-3)
-
-        # self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
-        self.gradient = tf.gradients(self.loss, self.tvars)
-        var_norms = tf.global_norm(self.tvars)
-
-        # self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
-
-        self.grad_n = self.gradient_holders
-        # self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders, 40)
-        # self.grad_n = tf.clip_by_norm(self.gradient_holders, 5)
-
-        # self.grad_n, _ = tf.clip_by_global_norm(self.gradient, var_norms)
-        # self.grad_n = tf.clip_by_value(self.gradient, -20,20)
-
-        # self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders, self.tvars))
-        self.update_batch = optimizer.apply_gradients(zip(self.grad_n, self.tvars))
-
-        # ------------------------------------------------------------------------------
+        #------------------------------------------------------------------------------
 
         self.asaver = tf.train.Saver()
 
 
-def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
-    assert for_human is not None, "forgot to specify for_human flag build_batch_from_names"
+def build_batch_from_names(batch_unit_names,batch_size,for_human=None):
+
+    assert for_human is not None,"forgot to specify for_human flag build_batch_from_names"
 
     day_series_batch = []
     user_x_batch = []
@@ -1231,7 +1251,7 @@ def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
         if for_human:
             loaded_unit = get_human_unit_for_name(a_name)
         else:
-            loaded_unit = get_machine_unit_for_name(a_name, norm_vals)
+            loaded_unit = get_machine_unit_for_name(a_name,norm_vals)
 
         a_day_series = loaded_unit["dayseriesx"]
         a_user_x = loaded_unit["userx"]
@@ -1248,33 +1268,34 @@ def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
     workout_series_batch = np.array(workout_series_batch)
     workout_y_batch = np.array(workout_y_batch)
 
-    # print workout_y_batch.shape
-    # print workout_series_batch.shape
-    # print user_x_batch.shape
-    # print day_series_batch.shape
+    #print workout_y_batch.shape
+    #print workout_series_batch.shape
+    #print user_x_batch.shape
+    #print day_series_batch.shape
 
-    return workout_y_batch, workout_series_batch, user_x_batch, day_series_batch
+    return workout_y_batch,workout_series_batch,user_x_batch,day_series_batch
 
 
 def train_stress_adaptation_model():
+
     make_raw_units()
     write_norm_values()
 
     all_names = get_unit_names()
     norm_vals = get_norm_values()
-    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
+    loaded_unit = get_machine_unit_for_name(all_names[0],norm_vals)
 
     some_day_series = loaded_unit["dayseriesx"]
     some_user_x = loaded_unit["userx"]
     some_workout_series = loaded_unit["workoutxseries"]
     some_workout_y = loaded_unit["workouty"]
     abc = None
-    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, CONFIG.CONFIG_BATCH_SIZE)
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y,CONFIG.CONFIG_BATCH_SIZE)
     init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
     sess = tf.Session()
     sess.run(init_op)
 
-    split_index = int(math.floor(float(len(all_names)) * 0.8))
+    split_index = int(math.floor(float(len(all_names))*0.8))
 
     shuffle(all_names)
     train_names = all_names[:split_index]
@@ -1292,59 +1313,61 @@ def train_stress_adaptation_model():
         train_error = 0.0
         valid_error = 0.0
 
-        while len(train_names_copy) > CONFIG.CONFIG_BATCH_SIZE:
+
+        while len(train_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
 
             batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
 
             for ii in range(CONFIG.CONFIG_BATCH_SIZE):
                 train_names_copy.pop(0)
 
-            # day_series_batch = []
-            # user_x_batch = []
-            # workout_series_batch = []
-            # workout_y_batch = []
+            #day_series_batch = []
+            #user_x_batch = []
+            #workout_series_batch = []
+            #workout_y_batch = []
 
-            wo_y_batch, wo_series_batch, user_x_batch, day_series_batch \
-                = build_batch_from_names(batch_unit_train_names, CONFIG.CONFIG_BATCH_SIZE, for_human=False)
+            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch \
+                = build_batch_from_names(batch_unit_train_names,CONFIG.CONFIG_BATCH_SIZE,for_human=False)
 
-            # print "before"
-            # print wo_y_batch.shape
-            # print wo_series_batch.shape
-            # print user_x_batch.shape
-            # print day_series_batch.shape
+            #print "before"
+            #print wo_y_batch.shape
+            #print wo_series_batch.shape
+            #print user_x_batch.shape
+            #print day_series_batch.shape
 
             ABC = None
 
             train_results = sess.run([
-                alw.world_day_series_input,
-                alw.world_workout_series_input,
-                alw.world_y,
-                alw.world_operation,
-                alw.world_e,
-                alw.world_workout_y,
-                alw.world_combined,
-                alw.world_combined_shaped,
-                alw.world_b4shape,
-                alw.world_lastA,
-                alw.world_lastAA
+                                alw.world_day_series_input,
+                                alw.world_workout_series_input,
+                                alw.world_y,
+                                alw.world_operation,
+                                alw.world_e,
+                                alw.world_workout_y,
+                                alw.world_combined,
+                                alw.world_combined_shaped,
+                                alw.world_b4shape,
+                                alw.world_lastA,
+                                alw.world_lastAA
 
-                # alw.combined2,
-                # alw.workout_y,
-                # alw.afshape,
-                # alw.user_vector_input
-            ],
+                                #alw.combined2,
+                                #alw.workout_y,
+                                #alw.afshape,
+                                #alw.user_vector_input
+                                 ],
 
-                feed_dict={
-                    alw.world_day_series_input: day_series_batch,
-                    alw.world_workout_series_input: wo_series_batch,
-                    alw.world_user_vector_input: user_x_batch,
-                    alw.world_workout_y: wo_y_batch
-                })
+                                feed_dict={
+                                        alw.world_day_series_input:day_series_batch,
+                                        alw.world_workout_series_input:wo_series_batch,
+                                        alw.world_user_vector_input:user_x_batch,
+                                        alw.world_workout_y:wo_y_batch
+                                        })
             abc = None
             train_error += float(train_results[4])
-            print "trainExtern: " + str(train_error / len(train_names))
+            print "trainExtern: " + str(train_error/len(train_names))
 
-        while len(valid_names_copy) > CONFIG.CONFIG_BATCH_SIZE:
+
+        while len(valid_names_copy)>CONFIG.CONFIG_BATCH_SIZE:
 
             batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
 
@@ -1356,93 +1379,103 @@ def train_stress_adaptation_model():
             workout_series_batch = []
             workout_y_batch = []
 
-            wo_y_batch, wo_series_batch, user_x_batch, day_series_batch \
-                = build_batch_from_names(batch_unit_valid_names, CONFIG.CONFIG_BATCH_SIZE, for_human=False)
+            wo_y_batch,wo_series_batch,user_x_batch,day_series_batch \
+                = build_batch_from_names(batch_unit_valid_names,CONFIG.CONFIG_BATCH_SIZE,for_human=False)
 
-            # print workout_y_batch.shape
-            # print workout_series_batch.shape
-            # print user_x_batch.shape
-            # print day_series_batch.shape
+            #print workout_y_batch.shape
+            #print workout_series_batch.shape
+            #print user_x_batch.shape
+            #print day_series_batch.shape
 
             ABC = None
 
             valid_results = sess.run([
-                alw.world_day_series_input,
-                alw.world_workout_series_input,
-                alw.world_y,
-                # alw.world_operation,
-                alw.world_e,
-                alw.world_workout_y,
-                alw.world_combined,
-                alw.world_combined_shaped,
-                alw.world_b4shape,
-                alw.world_lastA,
-                alw.world_lastAA
+                                alw.world_day_series_input,
+                                alw.world_workout_series_input,
+                                alw.world_y,
+                                #alw.world_operation,
+                                alw.world_e,
+                                alw.world_workout_y,
+                                alw.world_combined,
+                                alw.world_combined_shaped,
+                                alw.world_b4shape,
+                                alw.world_lastA,
+                                alw.world_lastAA
 
-                # alw.combined2,
-                # alw.workout_y,
-                # alw.afshape,
-                # alw.user_vector_input
-            ],
+                                #alw.combined2,
+                                #alw.workout_y,
+                                #alw.afshape,
+                                #alw.user_vector_input
+                                 ],
 
-                feed_dict={
-                    alw.world_day_series_input: day_series_batch,
-                    alw.world_workout_series_input: wo_series_batch,
-                    alw.world_user_vector_input: user_x_batch,
-                    alw.world_workout_y: wo_y_batch
-                })
+                                feed_dict={
+                                        alw.world_day_series_input:day_series_batch,
+                                        alw.world_workout_series_input:wo_series_batch,
+                                        alw.world_user_vector_input:user_x_batch,
+                                        alw.world_workout_y:wo_y_batch
+                                        })
             abc = None
             valid_error += float(valid_results[3])
-            # print "trainExtern: " + str(train_error)
+            #print "trainExtern: " + str(train_error)
 
         train_error /= float(len(train_names))
         valid_error /= float(len(valid_names))
-        print "train_err: " + str(train_error) + " " + "valid_err: " + str(valid_error) + "best_err: " + str(best_error)
+        print "train_err: "+str(train_error)+" "+"valid_err: "+str(valid_error) + "best_err: "+str(best_error)
 
-        # have to use this until you have enough samples
-        # cuz atm 54 samples is not enough to generalize
-        # and you need low low error
+        #have to use this until you have enough samples
+        #cuz atm 54 samples is not enough to generalize
+        #and you need low low error
 
-        if train_error < best_error:
+        if train_error<best_error:
             best_error = train_error
             print "model saved"
             alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
-            # if train_error > valid_error:
-            #    print "model saved"
-            #    alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+        #if train_error > valid_error:
+        #    print "model saved"
+        #    alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
     sess.close()
 
 
+
 def train_rl_agent():
+
     all_names = get_unit_names()
     norm_vals = get_norm_values()
 
-    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
+    loaded_unit = get_machine_unit_for_name(all_names[0],norm_vals)
     some_day_series = loaded_unit["dayseriesx"]
     some_user_x = loaded_unit["userx"]
     some_workout_series = loaded_unit["workoutxseries"]
     some_workout_y = loaded_unit["workouty"]
 
     RL_BATCH_SIZE = 1
-    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
+    alw = Lift_NN(some_day_series,some_user_x,some_workout_series,some_workout_y,RL_BATCH_SIZE)
+
+
 
     init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
     sess = tf.Session()
     sess.run(init_op)
 
-    # saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
+
+
+
+    #saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
     alw.asaver.restore(sess, tf.train.latest_checkpoint('/Users/admin/Desktop/tmp/'))
 
-    # alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+    #alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
 
-    # this shouldn't affect the stress model I think
-    gradBuffer = sess.run(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent'))
+    #this shouldn't affect the stress model I think
+    gradBuffer = sess.run(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent'))
 
-    # starting_point_name = []
-    # starting_point_name.append(all_names[5])
+
+
+
+    #starting_point_name = []
+    #starting_point_name.append(all_names[5])
 
     NUM_EPOCHS = 20000000
 
@@ -1466,6 +1499,7 @@ def train_rl_agent():
 
             EPISODE_LENGTH = 10
 
+
             reward_episode = []
             action_index_episode = []
             value_episode = []
@@ -1473,45 +1507,47 @@ def train_rl_agent():
             userx_episode = []
             workoutxseries_episode = []
 
-            # then run the whole set for x epochs (add loop)
-            # run an episode with each sample(add looop)
+
+            #then run the whole set for x epochs (add loop)
+            #run an episode with each sample(add looop)
             for i in range(EPISODE_LENGTH):
 
                 h_unit = {}
 
                 if len(state.keys()) == 0:
 
-                    wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(
-                        a_sample_name_batch, 1, for_human=True)
+                    wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(a_sample_name_batch,1,for_human=True)
 
-                    # print wo_y_batch_h.shape
-                    # print wo_xseries_batch_h.shape
-                    # print user_x_batch_h.shape
-                    # print day_series_batch_h.shape
+                    #print wo_y_batch_h.shape
+                    #print wo_xseries_batch_h.shape
+                    #print user_x_batch_h.shape
+                    #print day_series_batch_h.shape
 
                     h_unit["dayseriesx"] = day_series_batch_h[0]
                     h_unit["userx"] = user_x_batch_h[0]
                     h_unit["workoutxseries"] = wo_xseries_batch_h[0]
 
-                    # we are bootstrapping with a training sample for training the rl
-                    # so the last sample is hollowed out for the stress model to predict
-                    # but here we want to make a decision with full data
-                    # so we just throw off that last partial sample
+                    #we are bootstrapping with a training sample for training the rl
+                    #so the last sample is hollowed out for the stress model to predict
+                    #but here we want to make a decision with full data
+                    #so we just throw off that last partial sample
 
-                    # reenable thisREZA
+                    #reenable thisREZA
                     npworkoutxseries = h_unit["workoutxseries"]
-                    npworkoutxseries = np.delete(npworkoutxseries, len(npworkoutxseries) - 1)
+                    npworkoutxseries = np.delete(npworkoutxseries,len(npworkoutxseries)-1)
                     h_unit["workoutxseries"] = npworkoutxseries
 
-                    # h_unit["workouty"] = wo_y_batch_h[0]
+                    #h_unit["workouty"] = wo_y_batch_h[0]
                     h_unit["workouty"] = {}
+
 
                     state = {}
                     state["dayseriesx"] = h_unit["dayseriesx"]
                     state["userx"] = h_unit["userx"]
                     state["workoutxseries"] = h_unit["workoutxseries"]
 
-                    # state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
+
+                    #state["lastrewarddetectedindex"] = len(wo_xseries_batch_h[0])-1
 
                     state["lastrewarddetectedindexes"] = {}
                     for exercise_name in CHOOSABLE_EXERCISES:
@@ -1524,7 +1560,7 @@ def train_rl_agent():
                     h_unit["workouty"] = {}
                     h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
 
-                m_unit = convert_human_unit_to_machine(h_unit, norm_vals)
+                m_unit = convert_human_unit_to_machine(h_unit,norm_vals)
 
                 day_series_batch_m = [m_unit["dayseriesx"]]
                 user_x_batch_m = [m_unit["userx"]]
@@ -1536,38 +1572,39 @@ def train_rl_agent():
                 results = sess.run([
                     alw.agent_day_series_input,
                     alw.agent_workout_series_input,
-                    alw.agent_policy1,
-                    alw.agent_value1,
-                    #alw.agent_afshape,
-                    #alw.agent_combined2,
+                    alw.agent_y_policy,
+                    alw.agent_value,
+                    alw.agent_afshape,
+                                   alw.agent_combined2,
                     alw.agent_user_vector_input
 
-                ],
+                    ],
                     feed_dict={
                         alw.agent_day_series_input: day_series_batch_m,
                         alw.agent_workout_series_input: wo_xseries_batch_m,
                         alw.agent_user_vector_input: user_x_batch_m
                     })
 
-                # 0 bc we only run batch sizes of 1
-                # so we can assume
+                #0 bc we only run batch sizes of 1
+                #so we can assume
                 agent_softmax_choices = results[2][0]
                 agent_value = results[3][0][0]
 
-                # now just use the index of the highest softmax value to lookup the action
-                # rl_all_possible_actions
+                #now just use the index of the highest softmax value to lookup the action
+                #rl_all_possible_actions
 
 
                 oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
                 oai_human_readable_action = rl_all_possible_actions[oai_index]
 
-                # i think none of the probabilities ^^ are allowed to be zero
-                # thats y u get the error then it collapses
-                # need to do a check for that
+
+                #i think none of the probabilities ^^ are allowed to be zero
+                    #thats y u get the error then it collapses
+                #need to do a check for that
 
 
-                # oai_index = np.argmax(agent_softmax_choices)
-                # oai_human_readable_action = rl_all_possible_actions[oai_index]
+                #oai_index = np.argmax(agent_softmax_choices)
+                #oai_human_readable_action = rl_all_possible_actions[oai_index]
 
                 rai_human_readable_action = np.random.choice(rl_all_possible_actions)
                 rai_index = rl_all_possible_actions.index(rai_human_readable_action)
@@ -1575,16 +1612,16 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 1.0  # float(aepoch)/float(NUM_EPOCHS)
+                percent_done = 1.0 #float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
                 # do_random_action = np.random.choice([True, False], p=a_dist)
 
 
-                # do_random_action = False
-                # oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
-                # oai_human_readable_action = rl_all_possible_actions[oai_index]
+                #do_random_action = False
+                #oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
+                #oai_human_readable_action = rl_all_possible_actions[oai_index]
 
                 if do_random_action:
                     human_readable_action = rai_human_readable_action
@@ -1593,12 +1630,16 @@ def train_rl_agent():
                     human_readable_action = oai_human_readable_action
                     action_index = oai_index
 
-                # print human_readable_action
+
+
+
+
+                #print human_readable_action
 
 
                 # now pass the chosen action + state to the env
                 action = human_readable_action
-                state, reward = agent_world_take_step(state, action, alw, sess)
+                state,reward = agent_world_take_step(state,action,alw,sess)
 
                 value_episode.append(agent_value)
                 reward_episode.append(reward)
@@ -1607,10 +1648,11 @@ def train_rl_agent():
                 userx_episode.append(m_unit["userx"][:])
                 workoutxseries_episode.append(m_unit["workoutxseries"][:])
 
+
             reward_per_sample.extend(reward_episode)
 
-            gamma = 0.99
 
+            gamma = 0.99
             def discount_rewards(r):
                 # the strength with which we encourage a sampled action is the weighted sum of all
                 # rewards afterwards
@@ -1621,6 +1663,7 @@ def train_rl_agent():
                     running_add = running_add * gamma + r[t]
                     discounted_r[t] = running_add
                 return discounted_r
+
 
             # https://arxiv.org/pdf/1506.02438.pdf
             # advantage function page 2
@@ -1635,13 +1678,14 @@ def train_rl_agent():
 
             advantages_episode = []
             advantages_episode = np.array(advantages_episode)
-            for i in range(len(reward_episode) - 1):
-                adv = reward_episode[i] + (gamma * value_episode[i + 1]) - value_episode[i]
+            for i in range(len(reward_episode)-1):
+                adv = reward_episode[i] + (gamma*value_episode[i+1]) - value_episode[i]
                 advantages_episode = np.append(advantages_episode, [adv])
             advantages_episode = np.append(advantages_episode, [0])
 
             advantages_episode = discount_rewards(advantages_episode)
             dreward_episode = discount_rewards(np.array(reward_episode))
+
 
             preward = np.array(dreward_episode)
             paction = np.array(action_index_episode)
@@ -1651,6 +1695,7 @@ def train_rl_agent():
             pworkoutxseries = np.array(workoutxseries_episode)
             pdayseriesx = np.array(dayseriesx_episode)
 
+
             feed_dict = {
                 alw.reward_holder: preward,
                 alw.action_holder: paction,
@@ -1658,15 +1703,16 @@ def train_rl_agent():
                 alw.advantage_holder: padvantages
                 ,
                 alw.agent_day_series_input: pdayseriesx,
-                alw.agent_workout_series_input: pworkoutxseries,
-                alw.agent_user_vector_input: pusersx
+                alw.agent_workout_series_input:pworkoutxseries,
+                alw.agent_user_vector_input:pusersx
             }
 
+
             results1 = sess.run([
-                alw.gradient,
-                alw.reward_holder,
-                alw.action_holder,
-                alw.value_holder], feed_dict=feed_dict)
+                                 alw.gradient,
+                                 alw.reward_holder,
+                                 alw.action_holder,
+                                 alw.value_holder], feed_dict=feed_dict)
 
             grads = results1[0]
 
@@ -1676,16 +1722,26 @@ def train_rl_agent():
         feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
+
         rps = np.mean(reward_per_sample)
         reward_per_epoch.append(rps)
-        print str(aepoch) + " " + str(rps) + " " + str(np.mean(reward_per_epoch))
+        print str(aepoch)+" "+str(rps) + " " + str(np.mean(reward_per_epoch))
+
+
+
 
     print reward_per_epoch
 
 
-# exercise=squat:reps=6:weight=620
 
-def agent_world_take_step(state, action, ai_graph, sess):
+
+
+
+
+#exercise=squat:reps=6:weight=620
+
+def agent_world_take_step(state,action,ai_graph,sess):
+
     # run through the lift world
     # make a new state
     # check for reward
@@ -1697,9 +1753,9 @@ def agent_world_take_step(state, action, ai_graph, sess):
     a_user_x_h = state['userx']
     a_workout_series_h = state['workoutxseries']
 
-    # ----------------------------------------------------------
+    #----------------------------------------------------------
 
-    # make a workout vector unit from chosen action
+    #make a workout vector unit from chosen action
 
     action_exercise_name_human = (action.split(":")[0]).split("=")[1]
     action_planned_reps_human = (action.split(":")[1]).split("=")[1]
@@ -1709,15 +1765,18 @@ def agent_world_take_step(state, action, ai_graph, sess):
     reward = 0
 
     if action_exercise_name_human == "LEAVEGYM":
-        # can just take the last day and add it again
 
-        a_day_series_h = np.append(a_day_series_h, copy.deepcopy(a_day_series_h[-1]))
+        #can just take the last day and add it again
 
-        # a_day_series_h.append(a_day_series_h[-1][:])
+        a_day_series_h = np.append(a_day_series_h,copy.deepcopy(a_day_series_h[-1]))
+
+        #a_day_series_h.append(a_day_series_h[-1][:])
 
         state_h['dayseriesx'] = state['dayseriesx']
         state_h['userx'] = state['userx']
         state_h['workoutxseries'] = state['workoutxseries']
+
+
 
     if action_exercise_name_human != "LEAVEGYM":
         # we will let nn calc rest intervals from
@@ -1751,10 +1810,10 @@ def agent_world_take_step(state, action, ai_graph, sess):
             velocities_m_per_s_arr
         )
 
-        # np array so u cant use append like above
-        a_workout_series_h = np.append(a_workout_series_h, workoutstep_for_predict_h)
+        #np array so u cant use append like above
+        a_workout_series_h = np.append(a_workout_series_h,workoutstep_for_predict_h)
 
-        # ----------------------------------------------------------
+        #----------------------------------------------------------
 
         # still need to pad and trim to max lengths
         # ez to do, just remove 1 from the back if you are appending 1
@@ -1764,10 +1823,10 @@ def agent_world_take_step(state, action, ai_graph, sess):
         # but the network was trained with a certain length
         # so we should structure the data simliar to how it was trained
 
-        a_workout_series_h = np.delete(a_workout_series_h, 0)
+        a_workout_series_h = np.delete(a_workout_series_h,0)
 
-        # ----------------------------------------------------------
-        # convert state to machine format
+        #----------------------------------------------------------
+        #convert state to machine format
 
         state_h = {}
         state_h['dayseriesx'] = a_day_series_h
@@ -1786,14 +1845,14 @@ def agent_world_take_step(state, action, ai_graph, sess):
         user_x_batch = np.array(user_x_batch)
         workout_series_batch = np.array(workout_series_batch)
 
-        # ---------------------------------------------------------
-        # put through graph
+        #---------------------------------------------------------
+        #put through graph
         alw = ai_graph
 
-        # print workout_y_batch.shape
-        # print workout_series_batch.shape
-        # print user_x_batch.shape
-        # print day_series_batch.shape
+        #print workout_y_batch.shape
+        #print workout_series_batch.shape
+        #print user_x_batch.shape
+        #print day_series_batch.shape
 
         results_of_action = sess.run([
             alw.world_day_series_input,
@@ -1801,19 +1860,18 @@ def agent_world_take_step(state, action, ai_graph, sess):
             alw.world_y
         ],
 
-            feed_dict={
-                alw.world_day_series_input: day_series_batch,
-                alw.world_workout_series_input: workout_series_batch,
-                alw.world_user_vector_input: user_x_batch
-            })
+        feed_dict={
+            alw.world_day_series_input: day_series_batch,
+            alw.world_workout_series_input: workout_series_batch,
+            alw.world_user_vector_input: user_x_batch
+        })
 
         m_filled_workout_step = results_of_action[2][0]
 
-        h_filled_workout_step = make_h_workout_with_xh_ym(workoutstep_for_predict_h, m_filled_workout_step,
-                                                          a_day_series_h)
+        h_filled_workout_step = make_h_workout_with_xh_ym(workoutstep_for_predict_h,m_filled_workout_step,a_day_series_h)
 
         # remove the partial one we added to the end so we could predict
-        a_workout_series_h = np.delete(a_workout_series_h, len(a_workout_series_h) - 1)
+        a_workout_series_h = np.delete(a_workout_series_h, len(a_workout_series_h)-1)
 
         # append the filled one to the end
         a_workout_series_h = np.append(a_workout_series_h, h_filled_workout_step)
@@ -1826,9 +1884,9 @@ def agent_world_take_step(state, action, ai_graph, sess):
         state_h['workouty'] = {}
         state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
 
-        # print a_workout_series_h[-1]
+        #print a_workout_series_h[-1]
 
-        # now calculate reward from the last reward index----------------
+        #now calculate reward from the last reward index----------------
 
 
         # find max force for index
@@ -1851,10 +1909,10 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
 
         # we store a last reward calculated index for each exercise
-        # so when calculating reward per exercise the reward is only calculated
-        # from that exercise
-        # aka dont see a force increase from benchpress when you do deadlift and count
-        # it as reward
+        #so when calculating reward per exercise the reward is only calculated
+        #from that exercise
+        #aka dont see a force increase from benchpress when you do deadlift and count
+        #it as reward
 
 
 
@@ -1867,6 +1925,8 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
         start_workout_force = None
         latest_workout_force = None
+
+
 
         # have to do this bc the timeseries length is a fixed moving window
         # so when we move the window we need to decrement the lastrewardindex
@@ -1881,11 +1941,12 @@ def agent_world_take_step(state, action, ai_graph, sess):
                 if state_h["lastrewarddetectedindexes"][akey] < 0:
                     state_h["lastrewarddetectedindexes"][akey] = None
 
+
         if no_reward_just_set_last_reward_detected_index == False:
 
             start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
 
-            # if start_index
+            #if start_index
 
             start_workout_step = state_h["workoutxseries"][start_index]
             start_workout_reps_completed = start_workout_step["reps_completed"]
@@ -1904,11 +1965,12 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
             start_workout_force = None
             no_reward_just_set_last_reward_detected_index = False
-            if len(start_workout_velocities) == 0:
+            if len(start_workout_velocities)==0:
                 no_reward_just_set_last_reward_detected_index = True
             else:
                 start_workout_average_velocity = np.mean(start_workout_velocities)
-                start_workout_force = float(start_workout_average_velocity) * float(start_workout_weight_lbs)
+                start_workout_force = float(start_workout_average_velocity)*float(start_workout_weight_lbs)
+
 
             latest_workout_step = state_h["workoutxseries"][-1]
             latest_workout_reps_completed = latest_workout_step["reps_completed"]
@@ -1918,7 +1980,7 @@ def agent_world_take_step(state, action, ai_graph, sess):
                 a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
                 latest_workout_velocities.append(a_velocity)
             latest_workout_average_velocity = np.mean(latest_workout_velocities)
-            latest_workout_force = latest_workout_average_velocity * latest_workout_weight_lbs
+            latest_workout_force = latest_workout_average_velocity*latest_workout_weight_lbs
 
             # force here units are in lbs per meters/second oh boy
             # should convert fully to metric but don't really need to
@@ -1927,7 +1989,7 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
         reward = 0
         if no_reward_just_set_last_reward_detected_index:
-            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
+            state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"])-1
         else:
             new_reward = latest_workout_force - start_workout_force
 
@@ -1935,14 +1997,18 @@ def agent_world_take_step(state, action, ai_graph, sess):
                 reward = new_reward
                 state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
-                # print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
-                #      str(state_h["lastrewarddetectedindex"])
-                # print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
-                # print new_reward
+            #print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
+            #      str(state_h["lastrewarddetectedindex"])
+            #print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
+            #print new_reward
 
         ABC = None
 
-    return state_h, reward
+
+    return state_h,reward
+
+    
+
 
 
 #train_stress_adaptation_model()
