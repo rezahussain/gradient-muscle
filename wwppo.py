@@ -1177,7 +1177,7 @@ class Lift_NN():
         # so when the advantage is positive we want to increase the mean
         # which means increasing the gradients of the responsible output
 
-        self.policy_loss = -tf.reduce_sum(tf.log(responsible_outputs1) * self.advantage_holder)
+        self.policy_loss1 = -tf.reduce_sum(tf.log(responsible_outputs1) * self.advantage_holder)
 
         # we look at the output of the policy, if it had low confidence in its choice
         # like all the choices were rated almost the same number
@@ -1218,7 +1218,7 @@ class Lift_NN():
         #self.loss2 = tf.divide(responsible_outputs1,responsible_outputs2)*self.advantage_holder
         #self.loss2 = self.loss
 
-        self.a3closs = 0.5 * self.value_loss1 + self.policy_loss  # - entropy * 0.01
+        self.a3closs = 0.5 * self.value_loss1 + self.policy_loss1  # - entropy * 0.01
 
         self.loss = self.ppoloss
         #self.loss = self.a3closs
@@ -1231,7 +1231,7 @@ class Lift_NN():
         self.train_value_op = optimizer.minimize(self.value_loss1)
 
 
-        # -----------------------------------------------------------------------------
+        #-----------------------------------------------------------------------------
 
 
         # optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
@@ -1726,7 +1726,7 @@ def train_rl_agent():
                 alw.reward_holder,
                 alw.action_holder,
                 alw.value_holder,
-                alw.policy_loss,
+                alw.policy_loss1,
                 #alw.value_loss,
                 alw.loss
                 #,
