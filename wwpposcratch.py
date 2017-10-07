@@ -1245,11 +1245,7 @@ class Lift_NN():
             self.gradient_holders.append(placeholder)
 
 
-        #so a note on tf.gradients
-        #your loss func needs to touch all of the tvars that you provide
-        #if it doesnt then it returns nonetype for the ones
-        #it doesnt touch and crashes
-        
+
 
         # self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
         self.gradient = tf.gradients(self.loss2, self.tvars)
