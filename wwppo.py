@@ -1091,11 +1091,7 @@ class Lift_NN():
 
                 agent_y_policy = dd3
 
-            #this one is outside of the scope
-            #bc for policy we get tf.gradients
-            #which requires that the loss touches all of the tvar args that u choose
-            #and when getting tf.gradients for policy we are not touching agent value
-            agent_value = tf.layers.dense(agent_combined2, 1)
+                agent_value = tf.layers.dense(agent_combined2, 1)
 
             return agent_y_policy,agent_value
 
@@ -1212,10 +1208,12 @@ class Lift_NN():
         # all ppo does is limit to a trust region by clipping if the adjustment is too big
         # so what I did was add the value estimate to it too and clip that too
 
+        epsilon = 0.1
+        #self.ratio = (responsible_outputs1/responsible_outputs2)
         self.ppoloss = tf.reduce_mean(tf.minimum(
                     (responsible_outputs1/responsible_outputs2)*self.advantage_holder,
-                    tf.clip_by_value((responsible_outputs1/responsible_outputs2),1-0.1,1+0.1)*self.advantage_holder
-                )) + (tf.clip_by_value(self.value_loss1,1-0.1,1+0.1))
+                    tf.clip_by_value((responsible_outputs1/responsible_outputs2),1-epsilon,1+epsilon)*self.advantage_holder
+                )) + (tf.clip_by_value(self.value_loss1*0.5,1-epsilon,1+epsilon))
 
         #self.loss2 = tf.divide(responsible_outputs1,responsible_outputs2)*self.advantage_holder
         #self.loss2 = self.loss
@@ -1223,6 +1221,7 @@ class Lift_NN():
         self.a3closs = 0.5 * self.value_loss1 + self.policy_loss  # - entropy * 0.01
 
         self.loss = self.ppoloss
+        #self.loss = self.a3closs
 
         new_params  = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent1')
         old_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent2')
@@ -1730,7 +1729,8 @@ def train_rl_agent():
                 alw.policy_loss,
                 #alw.value_loss,
                 alw.loss
-                #alw.loss2
+                #,
+                #alw.ratio
             ], feed_dict=feed_dict)
 
             '''
@@ -1742,10 +1742,10 @@ def train_rl_agent():
             ], feed_dict=feed_dict)
             '''
 
-
             #print results1[4]
             #print results1[5]
             #print results1[6]
+
             grads = results1[0]
             #print str(results1[4])+" "+str(results1[5])
 
@@ -1757,6 +1757,10 @@ def train_rl_agent():
 
         feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
+
+
+
+
 
 
 
