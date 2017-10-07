@@ -1036,91 +1036,84 @@ class Lift_NN():
         def add_rl_agent_with_scope(chosen_scope,a_workout_series_input,a_day_series_input,a_user_vector_input):
 
             with tf.variable_scope(chosen_scope):
+
                 DAYSERIESWINDOWSIZE = 11
                 WORKOUTSERIESWINDOWSIZE = 32
                 ##--------change the below world to agent
                 ##--------then setup the outputs
                 ##do rl assembling of inputs later when u start coding the rl environment interaction code
 
-                with tf.variable_scope("topten"):
-                    AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
+                AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
 
-                    with tf.variable_scope('agent_workout_series_stage'):
-                        agent_cellA = tf.contrib.rnn.LSTMCell(250)
-                        agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, a_workout_series_input,
-                                                                                 dtype=tf.float32)
+                with tf.variable_scope('agent_workout_series_stage'):
+                    agent_cellA = tf.contrib.rnn.LSTMCell(250)
+                    agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, a_workout_series_input,
+                                                                             dtype=tf.float32)
 
-                    with tf.variable_scope('agent_day_series_stage'):
-                        agent_cellAA = tf.contrib.rnn.LSTMCell(250)
-                        agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, a_day_series_input,
-                                                                                   dtype=tf.float32)
+                with tf.variable_scope('agent_day_series_stage'):
+                    agent_cellAA = tf.contrib.rnn.LSTMCell(250)
+                    agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, a_day_series_input,
+                                                                               dtype=tf.float32)
 
-                    agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
-                    agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
+                agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
+                agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
 
-                    agent_lastA = agent_lastA
-                    agent_lastAA = agent_lastAA
+                agent_lastA = agent_lastA
+                agent_lastAA = agent_lastAA
 
-                    # takes those two 250 and concats them to a 500
-                    agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
-                    agent_b4shape = tf.shape(agent_combined)
+                # takes those two 250 and concats them to a 500
+                agent_combined = tf.concat([agent_lastA, agent_lastAA], 2)
+                agent_b4shape = tf.shape(agent_combined)
 
-                    # so at setup time you need to know the shape
-                    # otherwise it is none
-                    # and the dense layer cannot be setup with a none dimension
+                # so at setup time you need to know the shape
+                # otherwise it is none
+                # and the dense layer cannot be setup with a none dimension
 
-                    # self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
+                # self.agent_combined_shaped = tf.reshape(self.agent_combined,(1,500))
 
+                # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
+                # so in that case we pass the batch num to it
+                # so the end result becomes 10,500
+                # when we r doing rl agent decision making we use a batch of 1
+                # so in that case it looks like 1,500
 
-                    # self.agent_b4shape can be (10,1,500) when doing rl gradient calcs
-                    # so in that case we pass the batch num to it
-                    # so the end result becomes 10,500
-                    # when we r doing rl agent decision making we use a batch of 1
-                    # so in that case it looks like 1,500
+                agent_combined_shaped = tf.reshape(agent_combined, (-1, 500))
 
+                # self.agent_combined_shaped = tf.reshape(self.agent_combined, [-1])
 
-                    agent_combined_shaped = tf.reshape(agent_combined, (-1, 500))
+                agent_afshape = tf.shape(agent_combined_shaped)
 
-                    # self.agent_combined_shaped = tf.reshape(self.agent_combined, [-1])
+                agent_combined2 = tf.concat([agent_combined_shaped, a_user_vector_input], 1)
 
-                    agent_afshape = tf.shape(agent_combined_shaped)
+                agent_dd = tf.layers.dense(agent_combined2, AGENT_NUM_Y_OUTPUT)
 
-                    agent_combined2 = tf.concat([agent_combined_shaped, a_user_vector_input], 1)
+                dd3 = tf.contrib.layers.softmax(agent_dd)
 
+                agent_y_policy = dd3
 
-                    agent_dd = tf.layers.dense(agent_combined2, AGENT_NUM_Y_OUTPUT)
-
-                    dd3 = tf.contrib.layers.softmax(agent_dd)
-
-                    agent_y_policy = dd3
-
+            #this one is outside of the scope
+            #bc for policy we get tf.gradients
+            #which requires that the loss touches all of the tvar args that u choose
+            #and when getting tf.gradients for policy we are not touching agent value
             agent_value = tf.layers.dense(agent_combined2, 1)
 
+            return agent_y_policy,agent_value
 
 
-
-            return agent_y_policy#,agent_value
-
-
-        agent_policy1 = add_rl_agent_with_scope("rl_agent1",
+        agent_policy1,agent_value1 = add_rl_agent_with_scope("rl_agent1",
                                                              self.agent_workout_series_input,
                                                              self.agent_day_series_input,
                                                              self.agent_user_vector_input)
 
-
-        agent_policy2 = add_rl_agent_with_scope("rl_agent2",
+        agent_policy2,agent_value2 = add_rl_agent_with_scope("rl_agent2",
                                                              self.agent_workout_series_input,
                                                              self.agent_day_series_input,
                                                              self.agent_user_vector_input)
-
 
         self.agent_policy1 = agent_policy1
-        #self.agent_value1 = agent_value1
+        self.agent_value1 = agent_value1
 
-
-
-
-        ##--------------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------------
 
         # RL setup is actor critic
         # so we calc a value function of how good it is to be in a certain state
@@ -1143,10 +1136,9 @@ class Lift_NN():
         # aka get the value outputs so we can compare them to the rewards they gave
         # and adjust them
 
-        #value_indexes1 = tf.range(0, tf.shape(agent_value1)[0]) * tf.shape(agent_value1)[1]
-        #responsible_values1 = tf.gather(tf.reshape(agent_value1, [-1]), value_indexes1)
-        #self.value_loss = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values1))
-
+        value_indexes1 = tf.range(0, tf.shape(agent_value1)[0]) * tf.shape(agent_value1)[1]
+        responsible_values1 = tf.gather(tf.reshape(agent_value1, [-1]), value_indexes1)
+        self.value_loss1 = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values1))
 
         # do the same for the policy
         # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1156,12 +1148,11 @@ class Lift_NN():
         # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
         responsible_outputs1 = tf.gather(tf.reshape(agent_policy1, [-1]), indexes1)
 
+        #-----------
 
-        ###
-        '''
         value_indexes2 = tf.range(0, tf.shape(agent_value2)[0]) * tf.shape(agent_value2)[1]
         responsible_values2 = tf.gather(tf.reshape(agent_value2, [-1]), value_indexes2)
-        self.value_loss2 = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values2))
+        self.value_loss2 = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values2))
 
         # do the same for the policy
         # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1170,7 +1161,6 @@ class Lift_NN():
             1] + self.action_holder
         # -1 bc the y comes out as  [[blah,blah],[blah,blah]], so reshape converts to [blah,blah,blah,blah]
         responsible_outputs2 = tf.gather(tf.reshape(agent_policy2, [-1]), indexes2)
-        '''
 
         # so if the advantage is positive
         # it means the action is better than what the policy would have chosen
@@ -1212,23 +1202,29 @@ class Lift_NN():
         # so I omit it
         #self.loss = 0.5 * self.value_loss + self.policy_loss  # - entropy * 0.01
 
+        # reduce_mean will become max mean when passed through optimizer minimize
+        # which is what we want
+        # if the advantage is positive then we need to increase the action probability
+        # if the advantage is negative then we need to decrease the action probability
 
-        #tf.stop_gradient(responsible_outputs2)
-
-#        self.loss2 = tf.reduce_mean(tf.minimum(
- #           tf.divide(responsible_outputs1,responsible_outputs2)*self.advantage_holder,
-  #          tf.clip_by_value(tf.divide(responsible_outputs1,responsible_outputs2),1-0.2,1+0.2)*self.advantage_holder
-   #     ))
+        self.ppoloss = tf.reduce_mean(tf.minimum(
+                    (responsible_outputs1/responsible_outputs2)*self.advantage_holder,
+                    tf.clip_by_value((responsible_outputs1/responsible_outputs2),1-0.1,1+0.1)*self.advantage_holder
+                )) + (tf.clip_by_value(self.value_loss1,1-0.1,1+0.1))
 
         #self.loss2 = tf.divide(responsible_outputs1,responsible_outputs2)*self.advantage_holder
         #self.loss2 = self.loss
-        self.loss2 = self.policy_loss #+ self.value_loss # - entropy * 0.01
 
-        #self.loss = self.loss2
+        self.a3closs = 0.5 * self.value_loss1 + self.policy_loss  # - entropy * 0.01
 
-        #new_params  = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent')
-        #old_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent')
-        #self.copy_new_to_old = [old_params.assign(new_params) for new_params, old_params in zip(new_params, old_params)]
+        self.loss = self.ppoloss
+
+        new_params  = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent1')
+        old_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent2')
+        self.copy_new_to_old = [old_params.assign(new_params) for new_params, old_params in zip(new_params, old_params)]
+
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-3)
+        self.train_value_op = optimizer.minimize(self.value_loss1)
 
 
         # -----------------------------------------------------------------------------
@@ -1236,6 +1232,7 @@ class Lift_NN():
 
         # optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
         optimizer = tf.train.RMSPropOptimizer(learning_rate=1e-3)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-3)
 
         self.tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,scope='rl_agent1')
 
@@ -1244,15 +1241,11 @@ class Lift_NN():
             placeholder = tf.placeholder(tf.float32, name=str(idx) + '_holder')
             self.gradient_holders.append(placeholder)
 
-
         #so a note on tf.gradients
         #your loss func needs to touch all of the tvars that you provide
         #if it doesnt then it returns nonetype for the ones
         #it doesnt touch and crashes
-        
-
-        # self.gradient = optimizer.compute_gradients(self.loss, var_list = self.tvars)
-        self.gradient = tf.gradients(self.loss2, self.tvars)
+        self.gradient = tf.gradients(self.loss, self.tvars)
         var_norms = tf.global_norm(self.tvars)
 
 
@@ -1731,26 +1724,37 @@ def train_rl_agent():
                 alw.value_holder,
                 alw.policy_loss,
                 #alw.value_loss,
-                #alw.loss
+                alw.loss
                 #alw.loss2
             ], feed_dict=feed_dict)
 
-            print results1[4]
-           # print results1[5]
+            '''
+            results2 = sess.run([
+
+                alw.train_value_op
+
+
+            ], feed_dict=feed_dict)
+            '''
+
+
+            #print results1[4]
+            #print results1[5]
             #print results1[6]
             grads = results1[0]
-            #print str(results1[3])+" "+str(results1[4])
+            #print str(results1[4])+" "+str(results1[5])
 
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
 
-
+        results2 = sess.run([alw.copy_new_to_old], feed_dict=feed_dict)
 
         feed_dict = dict(zip(alw.gradient_holders, gradBuffer))
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
-        #results2 = sess.run([alw.copy_new_to_old], feed_dict=feed_dict)
+
+
 
         rps = np.mean(reward_per_sample)
         reward_per_epoch.append(rps)
