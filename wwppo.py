@@ -1207,6 +1207,11 @@ class Lift_NN():
         # if the advantage is positive then we need to increase the action probability
         # if the advantage is negative then we need to decrease the action probability
 
+        # the normal definition of ppo does not include a value_loss
+        # but I added it in
+        # all ppo does is limit to a trust region by clipping if the adjustment is too big
+        # so what I did was add the value estimate to it too and clip that too
+
         self.ppoloss = tf.reduce_mean(tf.minimum(
                     (responsible_outputs1/responsible_outputs2)*self.advantage_holder,
                     tf.clip_by_value((responsible_outputs1/responsible_outputs2),1-0.1,1+0.1)*self.advantage_holder
