@@ -179,18 +179,22 @@ Abc = None
 
 # weight is in lbs
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
+CHOOSABLE_MULTIPLIERS = [-2.00,-0.50,-0.25,-0.12,-0.05,2.00,0.50,0.25,0.12,0.05]
 # now we need to make all of the combos the RLAgent can pick
 rl_all_possible_actions = []
 for exercise_name in CHOOSABLE_EXERCISES:
     exercise_index = exercise_vocabulary.index(exercise_name)
     for x in range(1, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
-        for y in range(45, CONFIG.CONFIG_MAX_WEIGHT, 5):
-            rl_all_possible_actions.append("exercise=" + exercise_name + ":reps=" + str(x) + ":weight=" + str(y))
+        #for y in range(45, CONFIG.CONFIG_MAX_WEIGHT, 5):
+        for y in CHOOSABLE_MULTIPLIERS:
+            rl_all_possible_actions.append("exercise=" + exercise_name + ":reps=" + str(x) + ":multiplier=" + str(y))
 
-rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:weight=0")
+rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:multiplier=0")
 
 ABC = None
 
+#old was 1356 for 200lb
+#new is 451
 
 # ---------------------------------------------------------->
 
@@ -939,6 +943,14 @@ class Lift_NN():
                                                                                dtype=tf.float32)
                 world_wo_batchB = tf.layers.batch_normalization(world_wo_rnn_outputsB)
 
+            with tf.variable_scope('world_workout_series_stageC'):
+                world_wo_cellC = tf.contrib.rnn.LSTMCell(100)
+                world_wo_resC = tf.contrib.rnn.ResidualWrapper(world_wo_cellC)
+                world_wo_rnn_outputsC, world_wo_rnn_stateB = tf.nn.dynamic_rnn(world_wo_resC, world_wo_rnn_outputsB,
+                                                                               dtype=tf.float32)
+                world_wo_batchC = tf.layers.batch_normalization(world_wo_rnn_outputsC)
+
+
             with tf.variable_scope('world_day_series_stageA'):
                 world_day_cellA = tf.contrib.rnn.LSTMCell(100)
                 world_day_rnn_outputsA, world_day_rnn_stateA = tf.nn.dynamic_rnn(world_day_cellA,
@@ -952,6 +964,15 @@ class Lift_NN():
                 world_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(world_day_resB, world_day_rnn_outputsA,
                                                                                  dtype=tf.float32)
                 world_day_batchB = tf.layers.batch_normalization(world_day_rnn_outputsB)
+
+            with tf.variable_scope('world_day_series_stageC'):
+                world_day_cellC = tf.contrib.rnn.LSTMCell(100)
+                world_day_resC = tf.contrib.rnn.ResidualWrapper(world_day_cellC)
+                world_day_rnn_outputsC, world_day_rnn_stateC = tf.nn.dynamic_rnn(world_day_resC, world_day_rnn_outputsB,
+                                                                                 dtype=tf.float32)
+                world_day_batchC = tf.layers.batch_normalization(world_day_rnn_outputsC)
+
+
 
             '''
             with tf.variable_scope('workout_input'):
@@ -982,8 +1003,8 @@ class Lift_NN():
                 world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
             '''
 
-            world_lastA = world_wo_rnn_outputsB[:, -1:]  # get last lstm output
-            world_lastAA = world_day_rnn_outputsB[:, -1:]  # get last lstm output
+            world_lastA = world_wo_rnn_outputsC[:, -1:]  # get last lstm output
+            world_lastAA = world_day_rnn_outputsC[:, -1:]  # get last lstm output
 
             # world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
             # world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
@@ -1037,23 +1058,40 @@ class Lift_NN():
 
             with tf.variable_scope(chosen_scope):
 
-                DAYSERIESWINDOWSIZE = 11
-                WORKOUTSERIESWINDOWSIZE = 32
+                #DAYSERIESWINDOWSIZE = 11
+                #WORKOUTSERIESWINDOWSIZE = 32
                 ##--------change the below world to agent
                 ##--------then setup the outputs
                 ##do rl assembling of inputs later when u start coding the rl environment interaction code
 
                 AGENT_NUM_Y_OUTPUT = len(rl_all_possible_actions)
+                NUM_NEURONS = 250
 
-                with tf.variable_scope('agent_workout_series_stage'):
+                with tf.variable_scope('agent_workout_series_stage_A'+chosen_scope):
                     agent_cellA = tf.contrib.rnn.LSTMCell(250)
                     agent_rnn_outputsA, agent_rnn_stateA = tf.nn.dynamic_rnn(agent_cellA, a_workout_series_input,
                                                                              dtype=tf.float32)
 
-                with tf.variable_scope('agent_day_series_stage'):
+                '''
+                with tf.variable_scope('agent_workout_series_stage_B'+chosen_scope):
+                    agent_cellB = tf.contrib.rnn.LSTMCell(250)
+                    res_agent_cellB = tf.contrib.rnn.ResidualWrapper(agent_cellB)
+                    agent_rnn_outputsB, agent_rnn_stateB = tf.nn.dynamic_rnn(res_agent_cellB, agent_rnn_outputsA,
+                                                                             dtype=tf.float32)
+                '''
+
+                with tf.variable_scope('agent_day_series_stage_A'+chosen_scope):
                     agent_cellAA = tf.contrib.rnn.LSTMCell(250)
                     agent_rnn_outputsAA, agent_rnn_stateAA = tf.nn.dynamic_rnn(agent_cellAA, a_day_series_input,
                                                                                dtype=tf.float32)
+
+                '''
+                with tf.variable_scope('agent_day_series_stage_B'+chosen_scope):
+                    agent_cellBB = tf.contrib.rnn.LSTMCell(250)
+                    res_agent_cellBB = tf.contrib.rnn.ResidualWrapper(agent_cellBB)
+                    agent_rnn_outputsBB, agent_rnn_stateBB = tf.nn.dynamic_rnn(res_agent_cellBB, agent_rnn_outputsAA,
+                                                                               dtype=tf.float32)
+                '''
 
                 agent_lastA = agent_rnn_outputsA[:, -1:]  # get last lstm output
                 agent_lastAA = agent_rnn_outputsAA[:, -1:]  # get last lstm output
@@ -1530,8 +1568,8 @@ def train_rl_agent():
             a_sample_name_batch = [a_sample_name]
             state = {}
 
-            #EPISODE_LENGTH = 35
-            EPISODE_LENGTH = 10
+            EPISODE_LENGTH = 40
+            #EPISODE_LENGTH = 10
 
             reward_episode = []
             action_index_episode = []
@@ -1743,7 +1781,6 @@ def train_rl_agent():
             ], feed_dict=feed_dict)
 
 
-
             #print results1[4]
             #print results1[5]
             #print results1[6]
@@ -1789,7 +1826,7 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
     action_exercise_name_human = (action.split(":")[0]).split("=")[1]
     action_planned_reps_human = (action.split(":")[1]).split("=")[1]
-    action_weight_lbs_human = (action.split(":")[2]).split("=")[1]
+    action_multiplier_lbs_human = (action.split(":")[2]).split("=")[1]
 
     state_h = state
     reward = 0
@@ -1812,7 +1849,11 @@ def agent_world_take_step(state, action, ai_graph, sess):
         exercise_name = action_exercise_name_human
         reps_planned = action_planned_reps_human
         reps_completed = -1
-        weight_lbs = action_weight_lbs_human
+
+        last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
+        new_weight_lbs = float(action_multiplier_lbs_human)*last_weight_lbs
+
+        weight_lbs = new_weight_lbs
 
         postset_heartrate = -1
         went_to_failure = -1
