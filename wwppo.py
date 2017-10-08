@@ -1208,9 +1208,15 @@ class Lift_NN():
         # all ppo does is limit to a trust region by clipping if the adjustment is too big
         # so what I did was add the value estimate to it too and clip that too
 
+        # you do -tf.reduce_mean
+        # this is because it turns it into increase mean
+        # and to do that you have to increase the action probability
+        # for actions with high advantage and reduce it for actions with negative
+        # advantage
+
         epsilon = 0.1
         #self.ratio = (responsible_outputs1/responsible_outputs2)
-        self.ppoloss = tf.reduce_mean(tf.minimum(
+        self.ppoloss = -tf.reduce_mean(tf.minimum(
                     (responsible_outputs1/responsible_outputs2)*self.advantage_holder,
                     tf.clip_by_value((responsible_outputs1/responsible_outputs2),1-epsilon,1+epsilon)*self.advantage_holder
                 )) + (tf.clip_by_value(self.value_loss1*0.5,1-epsilon,1+epsilon))
@@ -1522,7 +1528,7 @@ def train_rl_agent():
             a_sample_name_batch = [a_sample_name]
             state = {}
 
-            EPISODE_LENGTH = 10
+            EPISODE_LENGTH = 35
 
             reward_episode = []
             action_index_episode = []
@@ -1556,7 +1562,7 @@ def train_rl_agent():
                     # but here we want to make a decision with full data
                     # so we just throw off that last partial sample
 
-                    # reenable thisREZA
+
                     npworkoutxseries = h_unit["workoutxseries"]
                     npworkoutxseries = np.delete(npworkoutxseries, len(npworkoutxseries) - 1)
                     h_unit["workoutxseries"] = npworkoutxseries
@@ -1733,14 +1739,7 @@ def train_rl_agent():
                 #alw.ratio
             ], feed_dict=feed_dict)
 
-            '''
-            results2 = sess.run([
 
-                alw.train_value_op
-
-
-            ], feed_dict=feed_dict)
-            '''
 
             #print results1[4]
             #print results1[5]
@@ -1949,9 +1948,9 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
         rl_exercise_chosen_h = action_exercise_name_human
         no_reward_just_set_last_reward_detected_index = False
-        start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+        start_indexa = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
 
-        if start_index is None:
+        if start_indexa is None:
             no_reward_just_set_last_reward_detected_index = True
 
         start_workout_force = None
@@ -1961,8 +1960,7 @@ def agent_world_take_step(state, action, ai_graph, sess):
         # so when we move the window we need to decrement the lastrewardindex
         # for each exercise
         # bc by the time we have reached here we have moved the window
-
-        keys = state_h["lastrewarddetectedindexes"]
+        keys = state_h["lastrewarddetectedindexes"].keys()
         for akey in keys:
             checkNone = state_h["lastrewarddetectedindexes"][akey]
             if checkNone is not None:
@@ -1970,13 +1968,19 @@ def agent_world_take_step(state, action, ai_graph, sess):
                 if state_h["lastrewarddetectedindexes"][akey] < 0:
                     state_h["lastrewarddetectedindexes"][akey] = None
 
+        #the above can set a exercise to none
+        start_indexb = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+        if start_indexb is None:
+            no_reward_just_set_last_reward_detected_index = True
+
+
         if no_reward_just_set_last_reward_detected_index == False:
 
-            start_index = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
+            start_indexc = state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h]
 
             # if start_index
 
-            start_workout_step = state_h["workoutxseries"][start_index]
+            start_workout_step = state_h["workoutxseries"][start_indexc]
             start_workout_reps_completed = start_workout_step["reps_completed"]
             start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
             start_workout_velocities = []
