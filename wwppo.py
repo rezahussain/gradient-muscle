@@ -1796,6 +1796,8 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
+            print "env sample_over-----------------------------------------------------------"
+
 
         results2 = sess.run([alw.copy_new_to_old], feed_dict=feed_dict)
 
@@ -1843,9 +1845,11 @@ def agent_world_take_step(state, action, ai_graph, sess):
 
         # a_day_series_h.append(a_day_series_h[-1][:])
 
-        state_h['dayseriesx'] = state['dayseriesx']
+        state_h['dayseriesx'] = a_day_series_h
         state_h['userx'] = state['userx']
         state_h['workoutxseries'] = state['workoutxseries']
+
+        print "env LEAVEGYM"
 
     if action_exercise_name_human != "LEAVEGYM":
         # we will let nn calc rest intervals from
@@ -1866,6 +1870,9 @@ def agent_world_take_step(state, action, ai_graph, sess):
             new_weight_lbs = MAXIMUM_WEIGHT
 
         weight_lbs = new_weight_lbs
+
+        print "env "+exercise_name+" "+str(new_weight_lbs)+" "+str(reps_planned)
+
 
         postset_heartrate = -1
         went_to_failure = -1
