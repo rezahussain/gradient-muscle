@@ -179,7 +179,7 @@ Abc = None
 
 # weight is in lbs
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
-CHOOSABLE_MULTIPLIERS = [-2.00,-0.50,-0.25,-0.12,-0.05,2.00,0.50,0.25,0.12,0.05]
+CHOOSABLE_MULTIPLIERS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
 # now we need to make all of the combos the RLAgent can pick
 rl_all_possible_actions = []
 for exercise_name in CHOOSABLE_EXERCISES:
@@ -193,8 +193,13 @@ rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:multiplier=0")
 
 ABC = None
 
-#old was 1356 for 200lb
-#new is 451
+# old was 1356 for 200lb
+# new is 451 for 10 multipliers
+# the reward that the RL was able to get doubled from ~51 to 108
+# when I switched over to less RL actions
+# this means the RL has a hard time learning
+# when there are many choices
+
 
 # ---------------------------------------------------------->
 
@@ -1851,7 +1856,14 @@ def agent_world_take_step(state, action, ai_graph, sess):
         reps_completed = -1
 
         last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
-        new_weight_lbs = float(action_multiplier_lbs_human)*last_weight_lbs
+        new_weight_lbs = last_weight_lbs + (float(action_multiplier_lbs_human)*last_weight_lbs)
+
+        MINIMUM_WEIGHT = 45.0
+        MAXIMUM_WEIGHT = 1000.0
+        if new_weight_lbs < MINIMUM_WEIGHT:
+            new_weight_lbs = MINIMUM_WEIGHT
+        if new_weight_lbs > MAXIMUM_WEIGHT:
+            new_weight_lbs = MAXIMUM_WEIGHT
 
         weight_lbs = new_weight_lbs
 
