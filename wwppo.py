@@ -1134,7 +1134,7 @@ class Lift_NN():
 
         value_indexes1 = tf.range(0, tf.shape(agent_value1)[0]) * tf.shape(agent_value1)[1]
         responsible_values1 = tf.gather(tf.reshape(agent_value1, [-1]), value_indexes1)
-        self.value_loss1 = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values1))
+        self.value_loss1 = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values1))
 
         # do the same for the policy
         # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1148,7 +1148,7 @@ class Lift_NN():
 
         value_indexes2 = tf.range(0, tf.shape(agent_value2)[0]) * tf.shape(agent_value2)[1]
         responsible_values2 = tf.gather(tf.reshape(agent_value2, [-1]), value_indexes2)
-        self.value_loss2 = -tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values2))
+        self.value_loss2 = tf.reduce_sum(tf.squared_difference(self.reward_holder, responsible_values2))
 
         # do the same for the policy
         # 'advantage' here is defined as how much better or worse the result was from the prediction
@@ -1209,7 +1209,9 @@ class Lift_NN():
         # so what I did was add the value estimate to it too and clip that too
 
         # you do -tf.reduce_mean
-        # this is because it turns it into increase mean
+        # all it does is calc the mean
+        # but minimize tries to minimizes this mean
+        # so we invert it so minimize maximizes this mean
         # and to do that you have to increase the action probability
         # for actions with high advantage and reduce it for actions with negative
         # advantage
@@ -1528,7 +1530,8 @@ def train_rl_agent():
             a_sample_name_batch = [a_sample_name]
             state = {}
 
-            EPISODE_LENGTH = 35
+            #EPISODE_LENGTH = 35
+            EPISODE_LENGTH = 10
 
             reward_episode = []
             action_index_episode = []
@@ -1672,7 +1675,7 @@ def train_rl_agent():
                 userx_episode.append(m_unit["userx"][:])
                 workoutxseries_episode.append(m_unit["workoutxseries"][:])
 
-            reward_per_sample.extend(reward_episode)
+            reward_per_sample.append(np.sum(reward_episode))
 
             gamma = 0.99
 
