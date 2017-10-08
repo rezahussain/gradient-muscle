@@ -1762,11 +1762,6 @@ def train_rl_agent():
 
 
 
-
-
-
-
-
         rps = np.mean(reward_per_sample)
         reward_per_epoch.append(rps)
         print str(aepoch) + " " + str(rps) + " " + str(np.mean(reward_per_epoch))
