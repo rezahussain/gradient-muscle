@@ -2140,7 +2140,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                             num_times_exercise_changed = num_times_exercise_changed + 1
 
         # using a dumb method
-        # really we should check to see what exercises were chosen first
+        # really we should check to see all the exercises chosen so far
         # and then do it based off of that
         # this also penalizes for the user doing exercises that the rl agent cant choose
         # it gives reward if rl doesnt do all of the exercises, eg it gives reward of 2 if
@@ -2161,10 +2161,29 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #------------------------------------------------------------------------------------------------------------
 
         # penalize if completed reps is less than planned reps
+        # so penalize it by the average speed of completed reps * missed reps
+
+        last_workout_step = state_h["workoutxseries"][-1]
+        last_completed_reps = last_workout_step["reps_completed"]
+        last_planned_reps = last_workout_step["reps_planned"]
+        last_weight = float(last_workout_step["weight_lbs"])
+        missed_reps = (float(last_planned_reps) - float(last_completed_reps))
+        last_workout_velocities = []
+        for iiii in range(int(math.floor(last_completed_reps))):
+            a_velocity = float(last_workout_step["velocities_arr_"+str(iiii)])
+            last_workout_velocities.append(a_velocity)
+
+        last_avg_velocity = np.mean(last_workout_velocities)
+
+        missed_reps_penalty = last_avg_velocity * missed_reps
+
+        reward = reward - missed_reps_penalty
 
         #------------------------------------------------------------------------------------------------------------
 
 
+
+        #------------------------------------------------------------------------------------------------------------
 
         ABC = None
 
