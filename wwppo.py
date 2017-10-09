@@ -1623,9 +1623,42 @@ def train_rl_agent():
                     state["userx"] = h_unit["userx"]
                     state["workoutxseries"] = h_unit["workoutxseries"]
 
+
+
+
                     state["lastrewarddetectedindexes"] = {}
                     for exercise_name in CHOOSABLE_EXERCISES:
-                        state["lastrewarddetectedindexes"][exercise_name] = None
+
+                        # do not start last reward index where the rl starts taking actions
+                        # cuz then it can just do 45lbsxreps then 1rmxreps for each episode
+                        # to get reward
+                        # we want it to take actions to increase a users max force over time
+                        # so it should ideally look at the bootstrap sample past
+                        # and try to improve upon the max reward seen in that past
+
+                        # but what I am going to do here is just use the last seen
+                        # exercise sample for now
+                        # and just assume they are working up to a max or that the
+                        # backoff sets are close enough
+                        # or good enough of a jump off point that it nudges the RL
+                        # to improve the user's max force instead of just doing
+                        # repset patterns to get reward but not actually increase
+                        # the user's max force over time
+
+                        ex_index = exercise_vocabulary.index(exercise_name)
+                        ex_key = "category_exercise_name_"+str(ex_index)
+
+                        last_seen_index = None
+
+                        for ik in range(len(h_unit["workoutxseries"])):
+                            a_workout_step = h_unit["workoutxseries"][ik]
+                            if a_workout_step[ex_key] == 1:
+                                last_seen_index = ik
+
+                        state["lastrewarddetectedindexes"][exercise_name] = last_seen_index
+
+
+
 
                     # need this one bc we want the rl to move from exercise to exercise
                     # so we implement a  penalty for when it keeps switching between exercises
@@ -2179,7 +2212,6 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         reward = reward - missed_reps_penalty
 
-        #------------------------------------------------------------------------------------------------------------
 
 
 
