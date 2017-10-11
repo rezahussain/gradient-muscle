@@ -2194,7 +2194,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #------------------------------------------------------------------------------------------------------------
 
         # penalize if completed reps is less than planned reps
-        # so penalize it by the average speed of completed reps * missed reps
+        # so penalize it by (the average speed of completed reps) * (missed reps)
 
         last_workout_step = state_h["workoutxseries"][-1]
         last_completed_reps = last_workout_step["reps_completed"]
