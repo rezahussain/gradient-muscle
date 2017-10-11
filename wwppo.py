@@ -1383,6 +1383,10 @@ def train_stress_adaptation_model():
     sess = tf.Session()
     sess.run(init_op)
 
+    latest_checkpoint = tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+    if latest_checkpoint is not None:
+        alw.asaver.restore(sess, latest_checkpoint)
+
     split_index = int(math.floor(float(len(all_names)) * 0.8))
 
     shuffle(all_names)
@@ -1515,7 +1519,7 @@ def train_stress_adaptation_model():
         if train_error < best_error:
             best_error = train_error
             print "model saved"
-            alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+            alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION+CONFIG.CONFIG_MODEL_NAME)
 
             # if train_error > valid_error:
             #    print "model saved"
@@ -1541,8 +1545,16 @@ def train_rl_agent():
     sess = tf.Session()
     sess.run(init_op)
 
+    latest_checkpoint = tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+
+    if latest_checkpoint is None:
+        assert("you need to train the stress model first right now it doesnt exist")
+
+    if latest_checkpoint is not None:
+        alw.asaver.restore(sess, latest_checkpoint)
+
     # saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
-    alw.asaver.restore(sess, tf.train.latest_checkpoint('/Users/admin/Desktop/tmp/'))
+    #alw.asaver.restore(sess, tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION))
 
     # alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
 
@@ -1552,6 +1564,8 @@ def train_rl_agent():
 
     # starting_point_name = []
     # starting_point_name.append(all_names[5])
+
+    most_reward_save_check = -9999
 
     NUM_EPOCHS = 20000000
 
@@ -1850,10 +1864,15 @@ def train_rl_agent():
         results1 = sess.run([alw.update_batch], feed_dict=feed_dict)
 
 
-
         rps = np.mean(reward_per_sample)
         reward_per_epoch.append(rps)
         print str(aepoch) + " " + str(rps) + " " + str(np.mean(reward_per_epoch))
+
+        if rps > most_reward_save_check:
+            print "saved model"
+            most_reward_save_check = rps
+            alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION + CONFIG.CONFIG_MODEL_NAME)
+
 
     print reward_per_epoch
 
@@ -2222,8 +2241,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
     return state_h, reward, actions_episode_log_human
 
 
-#train_stress_adaptation_model()
-train_rl_agent()
+train_stress_adaptation_model()
+#train_rl_agent()
 
 
 

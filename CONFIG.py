@@ -25,7 +25,8 @@ SOFTWARE.
 
 CONFIG_NUM_EPOCHS = 20000000
 
-CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/stressmodel"
+CONFIG_MODEL_NAME = "stressmodel"
+CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/"
 
 CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradient-muscle/workoutdata/rezadata/"
 
