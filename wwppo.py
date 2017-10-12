@@ -2241,9 +2241,206 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
     return state_h, reward, actions_episode_log_human
 
 
-train_stress_adaptation_model()
+
+# samples to use
+# epochs to use
+# receipt
+
+def rl_provide_recommendation_based_on_latest():
+
+    all_names = get_unit_names()
+    norm_vals = get_norm_values()
+    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
+    some_day_series = loaded_unit["dayseriesx"]
+    some_user_x = loaded_unit["userx"]
+    some_workout_series = loaded_unit["workoutxseries"]
+    some_workout_y = loaded_unit["workouty"]
+    RL_BATCH_SIZE = 1
+    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
+
+    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    sess = tf.Session()
+    sess.run(init_op)
+
+    latest_checkpoint = tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+    if latest_checkpoint is None:
+        assert("you need to train the stress model first right now it doesnt exist")
+    if latest_checkpoint is not None:
+        alw.asaver.restore(sess, latest_checkpoint)
+
+    all_names = sorted(all_names)
+    a_sample_name = all_names[-1]
+
+    a_sample_name_batch = [a_sample_name]
+    state = {}
+
+    EPISODE_LENGTH = 40
+
+    actions_episode_log_human = []
+
+    # then run the whole set for x epochs (add loop)
+    # run an episode with each sample(add looop)
+    for i in range(EPISODE_LENGTH):
+
+        h_unit = {}
+
+        if len(state.keys()) == 0:
+
+            wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(
+                a_sample_name_batch, 1, for_human=True)
+
+            # print wo_y_batch_h.shape
+            # print wo_xseries_batch_h.shape
+            # print user_x_batch_h.shape
+            # print day_series_batch_h.shape
+
+            h_unit["dayseriesx"] = day_series_batch_h[0]
+            h_unit["userx"] = user_x_batch_h[0]
+            h_unit["workoutxseries"] = wo_xseries_batch_h[0]
+
+            # we are bootstrapping with a training sample for training the rl
+            # so the last sample is hollowed out for the stress model to predict
+            # but here we want to make a decision with full data
+            # so we just throw off that last partial sample
+
+            npworkoutxseries = h_unit["workoutxseries"]
+            npworkoutxseries = np.delete(npworkoutxseries, len(npworkoutxseries) - 1)
+            h_unit["workoutxseries"] = npworkoutxseries
+
+            # h_unit["workouty"] = wo_y_batch_h[0]
+            h_unit["workouty"] = {}
+
+            state = {}
+            state["dayseriesx"] = h_unit["dayseriesx"]
+            state["userx"] = h_unit["userx"]
+            state["workoutxseries"] = h_unit["workoutxseries"]
+
+
+            state["lastrewarddetectedindexes"] = {}
+            for exercise_name in CHOOSABLE_EXERCISES:
+
+                # do not start last reward index where the rl starts taking actions
+                # cuz then it can just do 45lbsxreps then 1rmxreps for each episode
+                # to get reward
+                # we want it to take actions to increase a users max force over time
+                # so it should ideally look at the bootstrap sample past
+                # and try to improve upon the max reward seen in that past
+
+                # but what I am going to do here is just use the last seen
+                # exercise sample for now
+                # and just assume they are working up to a max or that the
+                # backoff sets are close enough
+                # or good enough of a jump off point that it nudges the RL
+                # to improve the user's max force instead of just doing
+                # repset patterns to get reward but not actually increase
+                # the user's max force over time
+
+                ex_index = exercise_vocabulary.index(exercise_name)
+                ex_key = "category_exercise_name_"+str(ex_index)
+
+                last_seen_index = None
+
+                for ik in range(len(h_unit["workoutxseries"])):
+                    a_workout_step = h_unit["workoutxseries"][ik]
+                    if a_workout_step[ex_key] == 1:
+                        last_seen_index = ik
+
+                state["lastrewarddetectedindexes"][exercise_name] = last_seen_index
+
+
+            # need this one bc we want the rl to move from exercise to exercise
+            # so we implement a  penalty for when it keeps switching between exercises
+            # but for that we need to know when it started picking actions to take
+            state["rl_actions_started_index"] = len(h_unit["workoutxseries"])-1
+
+        else:
+            h_unit["dayseriesx"] = state["dayseriesx"]
+            h_unit["userx"] = state["userx"]
+            h_unit["workoutxseries"] = state["workoutxseries"]
+            h_unit["workouty"] = {}
+            h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
+
+            h_unit["rl_actions_started_index"] = state["rl_actions_started_index"]-1
+            if h_unit["rl_actions_started_index"] < 0:
+                h_unit["rl_actions_started_index"] = 0
+
+
+        m_unit = convert_human_unit_to_machine(h_unit, norm_vals)
+
+        day_series_batch_m = [m_unit["dayseriesx"]]
+        user_x_batch_m = [m_unit["userx"]]
+        wo_xseries_batch_m = [m_unit["workoutxseries"]]
+        wo_y_batch_m = [m_unit["workouty"]]
+
+        ABC = None
+
+        results = sess.run([
+            alw.agent_day_series_input,
+            alw.agent_workout_series_input,
+            alw.agent_policy1,
+            #alw.agent_value1,
+            #alw.agent_afshape,
+            #alw.agent_combined2,
+            alw.agent_user_vector_input,
+            #alw.copy_new_to_old,
+
+        ],
+            feed_dict={
+                alw.agent_day_series_input: day_series_batch_m,
+                alw.agent_workout_series_input: wo_xseries_batch_m,
+                alw.agent_user_vector_input: user_x_batch_m
+            })
+
+        # 0 bc we only run batch sizes of 1
+        # so we can assume
+        agent_softmax_choices = results[2][0]
+        agent_value = results[3][0][0]
+
+        # now just use the index of the highest softmax value to lookup the action
+        # rl_all_possible_actions
+
+        oai_index = np.random.choice(range(len(agent_softmax_choices)), p=agent_softmax_choices)
+        oai_human_readable_action = rl_all_possible_actions[oai_index]
+
+        # i think none of the probabilities ^^ are allowed to be zero
+        # thats y u get the error then it collapses
+        # need to do a check for that
+
+        rai_human_readable_action = np.random.choice(rl_all_possible_actions)
+        rai_index = rl_all_possible_actions.index(rai_human_readable_action)
+
+        human_readable_action = None
+        action_index = None
+
+        percent_done = 1.0  # float(aepoch)/float(NUM_EPOCHS)
+        random_prob = 1.0 - percent_done
+        not_random_prob = 1.0 - random_prob
+        do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
+
+        if do_random_action:
+            human_readable_action = rai_human_readable_action
+            action_index = rai_index
+        else:
+            human_readable_action = oai_human_readable_action
+            action_index = oai_index
+
+        # now pass the chosen action + state to the env
+        action = human_readable_action
+        state, reward, actions_episode_log_human = agent_world_take_step(state, action, alw, sess,actions_episode_log_human)
+
+    print a_sample_name
+    for recommendation in actions_episode_log_human:
+        print recommendation
+
+
+
+
+
+
+#train_stress_adaptation_model()
 #train_rl_agent()
 
+rl_provide_recommendation_based_on_latest()
 
 
 
