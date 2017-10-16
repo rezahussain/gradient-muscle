@@ -38,6 +38,7 @@ import datetime
 import calendar
 import math
 import CONFIG as CONFIG
+import warnings as warnings
 
 jsonfilenames = os.listdir(CONFIG.CONFIG_RAW_JSON_PATH)
 
@@ -179,14 +180,25 @@ Abc = None
 
 # weight is in lbs
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
-CHOOSABLE_MULTIPLIERS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
+
+
+REP_ADJUSTMENT_ACTIONS = [0,1,2,3,4,-1,-2,-3,-4]
+WEIGHT_MULTIPLIER_ACTIONS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
 # now we need to make all of the combos the RLAgent can pick
 
 rl_all_possible_actions = []
 
-for x in range(CONFIG.CONFIG_MIN_REPS_PER_SET, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
-    for y in CHOOSABLE_MULTIPLIERS:
-        rl_all_possible_actions.append("reps=" + str(x) + ":multiplier=" + str(y))
+ADJUST_REPS = "ADJUSTREPS"
+MULTIPLY_WEIGHT = "MULTIPLYWEIGHT"
+
+for y in REP_ADJUSTMENT_ACTIONS:
+    rl_all_possible_actions.append(ADJUST_REPS+"="+str(y))
+for y in WEIGHT_MULTIPLIER_ACTIONS:
+    rl_all_possible_actions.append(MULTIPLY_WEIGHT+"="+str(y))
+
+# for x in range(CONFIG.CONFIG_MIN_REPS_PER_SET, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
+#    for y in CHOOSABLE_MULTIPLIERS:
+#        rl_all_possible_actions.append("reps=" + str(x) + ":multiplier=" + str(y))
 
 LEAVE_GYM = "LEAVEGYM"
 NEXT_EXERCISE = "NEXTEXERCISE"
@@ -288,17 +300,22 @@ def make_workout_step_human(
 
         reps_completed = reps_completed
         while len(velarr) < reps_completed:
-            velarr.append(np.mean(vmpsa))
+            velarr.append(velarr[-1])
+
+    if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
+        warnings.warn("too many velocities, bad data?")
+        velarr = velarr[0:CONFIG.CONFIG_MAX_REPS_PER_SET]
 
     while len(velarr) < CONFIG.CONFIG_MAX_REPS_PER_SET:
         velarr.append(0)
 
-    if len(velarr) > CONFIG.CONFIG_MAX_REPS_PER_SET:
-        assert "too many velocities, bad data?"
 
-    for c in velarr:
-        if c < 0.0:
-            assert "there exists a negative velocity, bad data?"
+
+    for c in range(len(velarr)):
+        v = velarr[c]
+        if v < 0.0:
+            warnings.warn("there exists a negative velocity, bad data?")
+            velarr[c]=0.0
 
     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
         packaged_workout["velocities_arr_" + str(iiii)] = velarr[iiii]
@@ -1304,8 +1321,6 @@ class Lift_NN():
         self.gradient = tf.gradients(self.loss, self.tvars)
         var_norms = tf.global_norm(self.tvars)
 
-
-
         # self.grad_n, _ = tf.clip_by_global_norm(self.gradient_holders,clip_norm=10)
 
         self.grad_n = self.gradient_holders
@@ -1367,6 +1382,7 @@ def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
 
 
 def train_stress_adaptation_model():
+
     make_raw_units()
     write_norm_values()
 
@@ -1864,10 +1880,10 @@ def train_rl_agent():
                 gradBuffer[idx] += grad
 
             #diagnostic
-            for entry in actions_episode_log_human:
-                print entry
-            for entry in reward_log_human:
-                print entry
+            #for entry in actions_episode_log_human:
+            #    print entry
+            #for entry in reward_log_human:
+            #    print entry
             ABC = None
 
 
@@ -1937,19 +1953,37 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #need this cuz we want the rl to learn across workouts
         #and doing next exercise depletes this so you cannot
         #do LEAVEGYM and keep going unless you replenish
+
         state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
         state_h["current_exercise"] = state_h["exercises_left"][0]
 
         actions_episode_log_human.append("env "+LEAVE_GYM)
         #print "env LEAVEGYM"
 
+
+
+    action_exercise_name_human = state_h["current_exercise"]
+    action_planned_reps_human = state_h["workoutxseries"][-1]["reps_planned"]
+    action_planned_weight_human = state_h["workoutxseries"][-1]["weight_lbs"]
+
+    if ADJUST_REPS in action:
+        rep_adjustment = action.split("=")[1]
+        action_planned_reps_human = action_planned_reps_human + float(rep_adjustment)
+        if action_planned_reps_human < CONFIG.CONFIG_MIN_REPS_PER_SET:
+            action_planned_reps_human = CONFIG.CONFIG_MIN_REPS_PER_SET
+        if action_planned_reps_human > CONFIG.CONFIG_MAX_REPS_PER_SET:
+            action_planned_reps_human = CONFIG.CONFIG_MAX_REPS_PER_SET
+
+    if MULTIPLY_WEIGHT in action:
+        weight_multiplication = action.split("=")[1]
+        last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
+        new_weight_lbs = last_weight_lbs + (float(weight_multiplication)*last_weight_lbs)
+        action_planned_weight_human = new_weight_lbs
+
+
     if LEAVE_GYM not in action and NEXT_EXERCISE not in action:
 
         # make a workout vector unit from chosen action
-
-        action_exercise_name_human = state_h["current_exercise"]
-        action_planned_reps_human = (action.split(":")[0]).split("=")[1]
-        action_multiplier_lbs_human = (action.split(":")[1]).split("=")[1]
 
         # we will let nn calc rest intervals from
         # times from the start of workout
@@ -1958,8 +1992,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         reps_planned = action_planned_reps_human
         reps_completed = -1
 
-        last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
-        new_weight_lbs = last_weight_lbs + (float(action_multiplier_lbs_human)*last_weight_lbs)
+        new_weight_lbs = action_planned_weight_human
 
         MINIMUM_WEIGHT = 45.0
         MAXIMUM_WEIGHT = 1000.0
@@ -2173,8 +2206,6 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             latest_workout_average_velocity = np.mean(latest_workout_velocities)
             latest_workout_force = latest_workout_average_velocity * latest_workout_weight_lbs
 
-
-
             # force here units are in lbs per meters/second oh boy
             # should convert fully to metric but don't really need to
             # bc rl agent doesnt really care about what units
@@ -2210,7 +2241,9 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # it knows doing extra sets will not give a reward
         #
         # no, let it find out that doing less sets gives a better reward
+        # through it's interactions with the stress model
         #
+        # i dont know if its powerful enough to figure that out tho
         #
         #excessive_sets_penalty = -10
         #reward = reward + excessive_sets_penalty
@@ -2218,22 +2251,32 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #------------------------------------------------------------------------------------------------------------
 
         # penalize if completed reps is less than planned reps
-        # so penalize it by (the average speed of completed reps) * (missed reps)
+        # just going to penalize by weight * missed reps bc
+        # if you penalize with (the average speed of previous completed reps) * (missed reps)
+        # then it gets a free ride when the user fails to complete even 1 rep
+        # aka 0 reps completed has no penalty in that case
+        # and its cumbersome and questionable to use the avg velocity from a previous
+        # set to calc the penalty for this set since there is no velocity
+        # when the user gets 0 reps
+
+        #need to figure out an appropriate penalty
+        #when doing either of the above
+        #it keeps getting negative reward
+        #i think the above penalties are too harsh
+
+        #reward is in terms of delta positive force achieved
+        #so u need to do the penalty in accordance with that
+
+        # I guess you can let it be a passive penalty
+        # bc if they miss all reps then there is no reward
+
+        # I think its ok to just use the missed reps by themselves as
+        # a very weak penalty
 
         last_workout_step = state_h["workoutxseries"][-1]
         last_completed_reps = last_workout_step["reps_completed"]
         last_planned_reps = last_workout_step["reps_planned"]
-        last_weight = float(last_workout_step["weight_lbs"])
-        missed_reps = (float(last_planned_reps) - float(last_completed_reps))
-        last_workout_velocities = []
-        for iiii in range(int(math.floor(last_completed_reps))):
-            a_velocity = float(last_workout_step["velocities_arr_"+str(iiii)])
-            last_workout_velocities.append(a_velocity)
-
-        last_avg_velocity = np.mean(last_workout_velocities)
-
-        missed_reps_penalty = last_avg_velocity * missed_reps
-
+        missed_reps_penalty = last_planned_reps - last_completed_reps
         reward = reward - missed_reps_penalty
 
 
