@@ -181,15 +181,18 @@ Abc = None
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
 CHOOSABLE_MULTIPLIERS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
 # now we need to make all of the combos the RLAgent can pick
-rl_all_possible_actions = []
-for exercise_name in CHOOSABLE_EXERCISES:
-    exercise_index = exercise_vocabulary.index(exercise_name)
-    for x in range(1, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
-        #for y in range(45, CONFIG.CONFIG_MAX_WEIGHT, 5):
-        for y in CHOOSABLE_MULTIPLIERS:
-            rl_all_possible_actions.append("exercise=" + exercise_name + ":reps=" + str(x) + ":multiplier=" + str(y))
 
-rl_all_possible_actions.append("exercise=LEAVEGYM:reps=0:multiplier=0")
+rl_all_possible_actions = []
+
+for x in range(CONFIG.CONFIG_MIN_REPS_PER_SET, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
+    for y in CHOOSABLE_MULTIPLIERS:
+        rl_all_possible_actions.append("reps=" + str(x) + ":multiplier=" + str(y))
+
+LEAVE_GYM = "LEAVEGYM"
+NEXT_EXERCISE = "NEXTEXERCISE"
+
+rl_all_possible_actions.append(LEAVE_GYM)
+rl_all_possible_actions.append(NEXT_EXERCISE)
 
 ABC = None
 
@@ -199,7 +202,6 @@ ABC = None
 # when I switched over to less RL actions
 # this means the RL has a hard time learning
 # when there are many choices
-
 
 # ---------------------------------------------------------->
 
@@ -305,7 +307,6 @@ def make_workout_step_human(
 
 
 # ---------------------------------------------------------->
-
 
 
 print workout_ranges
@@ -1591,6 +1592,7 @@ def train_rl_agent():
             #EPISODE_LENGTH = 10
 
             actions_episode_log_human = []
+            reward_log_human = []
 
             reward_episode = []
             action_index_episode = []
@@ -1636,6 +1638,9 @@ def train_rl_agent():
                     state["dayseriesx"] = h_unit["dayseriesx"]
                     state["userx"] = h_unit["userx"]
                     state["workoutxseries"] = h_unit["workoutxseries"]
+
+                    state["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
+                    state["current_exercise"] = state["exercises_left"][0]
 
 
 
@@ -1685,6 +1690,8 @@ def train_rl_agent():
                     h_unit["workoutxseries"] = state["workoutxseries"]
                     h_unit["workouty"] = {}
                     h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
+                    h_unit["exercises_left"] = state["exercises_left"]
+                    h_unit["current_exercise"] = state["current_exercise"]
 
                     h_unit["rl_actions_started_index"] = state["rl_actions_started_index"]-1
                     if h_unit["rl_actions_started_index"] < 0:
@@ -1743,7 +1750,7 @@ def train_rl_agent():
                 human_readable_action = None
                 action_index = None
 
-                percent_done = 1.0  # float(aepoch)/float(NUM_EPOCHS)
+                percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
                 random_prob = 1.0 - percent_done
                 not_random_prob = 1.0 - random_prob
                 do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1766,7 +1773,10 @@ def train_rl_agent():
 
                 # now pass the chosen action + state to the env
                 action = human_readable_action
-                state, reward, actions_episode_log_human = agent_world_take_step(state, action, alw, sess,actions_episode_log_human)
+                state, reward, actions_episode_log_human,end_episode,reward_log_human = agent_world_take_step(state, action, alw, sess,actions_episode_log_human,reward_log_human)
+
+                if end_episode:
+                    break
 
                 value_episode.append(agent_value)
                 reward_episode.append(reward)
@@ -1853,9 +1863,12 @@ def train_rl_agent():
             for idx, grad in enumerate(grads):
                 gradBuffer[idx] += grad
 
-            #print "env sample_over-----------------------------------------------------------"
-            #print out human actions here if you want
-                #actions_episode_log_human
+            #diagnostic
+            for entry in actions_episode_log_human:
+                print entry
+            for entry in reward_log_human:
+                print entry
+            ABC = None
 
 
         results2 = sess.run([alw.copy_new_to_old], feed_dict=feed_dict)
@@ -1879,7 +1892,8 @@ def train_rl_agent():
 
 # exercise=squat:reps=6:weight=620
 
-def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_human):
+def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_human,reward_log_human):
+
     # run through the lift world
     # make a new state
     # check for reward
@@ -1893,16 +1907,21 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
     # ----------------------------------------------------------
 
-    # make a workout vector unit from chosen action
-
-    action_exercise_name_human = (action.split(":")[0]).split("=")[1]
-    action_planned_reps_human = (action.split(":")[1]).split("=")[1]
-    action_multiplier_lbs_human = (action.split(":")[2]).split("=")[1]
-
     state_h = state
     reward = 0
 
-    if action_exercise_name_human == "LEAVEGYM":
+    end_episode = False
+
+    if NEXT_EXERCISE in action:
+        if len(state_h["exercises_left"]) == 1:
+            end_episode = True
+        else:
+            state_h["exercises_left"].pop(0)
+            state_h["current_exercise"] = state_h["exercises_left"][0]
+        actions_episode_log_human.append("env " + NEXT_EXERCISE)
+
+    if LEAVE_GYM in action:
+
         # can just take the last day and add it again
 
         a_day_series_h = np.append(a_day_series_h, copy.deepcopy(a_day_series_h[-1]))
@@ -1915,10 +1934,23 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h['workoutxseries'] = state['workoutxseries']
         state_h["rl_actions_started_index"] = len(state['workoutxseries'])-1
 
-        actions_episode_log_human.append("env LEAVEGYM")
+        #need this cuz we want the rl to learn across workouts
+        #and doing next exercise depletes this so you cannot
+        #do LEAVEGYM and keep going unless you replenish
+        state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
+        state_h["current_exercise"] = state_h["exercises_left"][0]
+
+        actions_episode_log_human.append("env "+LEAVE_GYM)
         #print "env LEAVEGYM"
 
-    if action_exercise_name_human != "LEAVEGYM":
+    if LEAVE_GYM not in action and NEXT_EXERCISE not in action:
+
+        # make a workout vector unit from chosen action
+
+        action_exercise_name_human = state_h["current_exercise"]
+        action_planned_reps_human = (action.split(":")[0]).split("=")[1]
+        action_multiplier_lbs_human = (action.split(":")[1]).split("=")[1]
+
         # we will let nn calc rest intervals from
         # times from the start of workout
 
@@ -2040,7 +2072,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h['workouty'] = {}
         state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
         state_h["rl_actions_started_index"] = state["rl_actions_started_index"]
-
+        state_h["exercises_left"] = state["exercises_left"]
+        state_h["current_exercise"] = state["current_exercise"]
         # print a_workout_series_h[-1]
 
         # now calculate reward from the last reward index----------------
@@ -2108,7 +2141,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             # if start_index
 
             start_workout_step = state_h["workoutxseries"][start_indexc]
-            start_workout_reps_completed = start_workout_step["reps_completed"]
+            start_workout_reps_completed = math.floor(start_workout_step["reps_completed"])
             start_workout_weight_lbs = float(start_workout_step["weight_lbs"])
             start_workout_velocities = []
             for iiii in range(int(math.floor(start_workout_reps_completed))):
@@ -2131,7 +2164,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                 start_workout_force = float(start_workout_average_velocity) * float(start_workout_weight_lbs)
 
             latest_workout_step = state_h["workoutxseries"][-1]
-            latest_workout_reps_completed = latest_workout_step["reps_completed"]
+            latest_workout_reps_completed = math.floor(latest_workout_step["reps_completed"])
             latest_workout_weight_lbs = float(latest_workout_step["weight_lbs"])
             latest_workout_velocities = []
             for iiii in range(int(math.floor(latest_workout_reps_completed))):
@@ -2139,6 +2172,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                 latest_workout_velocities.append(a_velocity)
             latest_workout_average_velocity = np.mean(latest_workout_velocities)
             latest_workout_force = latest_workout_average_velocity * latest_workout_weight_lbs
+
+
 
             # force here units are in lbs per meters/second oh boy
             # should convert fully to metric but don't really need to
@@ -2155,60 +2190,30 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                 reward = new_reward
                 state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
+                start_reward_receipt = str(start_workout_weight_lbs) + " " + str(start_workout_reps_completed) + " " + str(start_workout_average_velocity)
+                latest_reward_receipt = str(latest_workout_weight_lbs) + " " + str(latest_workout_reps_completed) + " " + str(latest_workout_average_velocity)
+                reward_receipt = str(state_h["current_exercise"]) + " " + str(start_reward_receipt) + " to " + str(latest_reward_receipt)
+
+                reward_log_human.append(reward_receipt)
+
+
                 # print str(latest_workout_force)+" "+str(start_workout_force)+" "+str(len(state_h["workoutxseries"])-1)+" "+\
                 #      str(state_h["lastrewarddetectedindex"])
                 # print rl_exercise_chosen_h + " " + str(new_reward)+" "+ str(len(state_h["workoutxseries"])-1) +" : "+str(start_index)
                 # print new_reward
 
-        #------------------------------------------------------------------------------------------------------------
-        # test to make sure the RL agent doesnt mix exercise
-        # we want it to move from one to the next
-        # so we put in a penalty if it keeps switching
-        # so you count one continuous exercise range as a block
-        # for every exercise range over 3 you minus some reward
-        # well, you can just count how many times it changes
-        # that might be simpler
-        # just scan forwards and each time it changes you increment a counter
-
-        continuous_exercises_check_arr = state_h["workoutxseries"][state_h["rl_actions_started_index"]:len(state_h["workoutxseries"])-1]
-
-        num_times_exercise_changed = 0
-        last_workoutstep_exercise_key_index = None
-
-        for i in range(len(continuous_exercises_check_arr)):
-            workoutstep = continuous_exercises_check_arr[i]
-            workoutstep_exercise_keys = []
-            for key in workoutstep.keys():
-                if "category_exercise_name_" in key:
-                    workoutstep_exercise_keys.append(key)
-            are_any_exercises_picked = False
-            for key in workoutstep_exercise_keys:
-                if workoutstep[key] == 1:
-                    key_index = workoutstep.index(key)
-                    if last_workoutstep_exercise_key_index is None:
-                        last_workoutstep_exercise_key_index = key_index
-                    else:
-                        if last_workoutstep_exercise_key_index != key_index:
-                            num_times_exercise_changed = num_times_exercise_changed + 1
-
-        # using a dumb method
-        # really we should check to see all the exercises chosen so far
-        # and then do it based off of that
-        # this also penalizes for the user doing exercises that the rl agent cant choose
-        # it gives reward if rl doesnt do all of the exercises, eg it gives reward of 2 if
-        # the rl picks benchpress and skips dead+squat
-        mixed_reward_penalty = len(CHOOSABLE_EXERCISES) - num_times_exercise_changed
-
-        reward = reward + (mixed_reward_penalty*10)
 
         #------------------------------------------------------------------------------------------------------------
 
         # put in a penalty for each set
         # so the NN encourages the user to leave the gym when
         # it knows doing extra sets will not give a reward
-
-        excessive_sets_penalty = -10
-        reward = reward + excessive_sets_penalty
+        #
+        # no, let it find out that doing less sets gives a better reward
+        #
+        #
+        #excessive_sets_penalty = -10
+        #reward = reward + excessive_sets_penalty
 
         #------------------------------------------------------------------------------------------------------------
 
@@ -2232,13 +2237,11 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         reward = reward - missed_reps_penalty
 
 
-
-
         #------------------------------------------------------------------------------------------------------------
 
         ABC = None
 
-    return state_h, reward, actions_episode_log_human
+    return state_h, reward, actions_episode_log_human,end_episode,reward_log_human
 
 
 
@@ -2438,9 +2441,8 @@ def rl_provide_recommendation_based_on_latest():
 
 
 #train_stress_adaptation_model()
-#train_rl_agent()
-
-rl_provide_recommendation_based_on_latest()
+train_rl_agent()
+#rl_provide_recommendation_based_on_latest()
 
 
 

@@ -36,7 +36,8 @@ CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Desktop/tmp/normvals"
 
 CONFIG_WORKOUT_LOOKBACK = 2
 CONFIG_BATCH_SIZE = 6
-CONFIG_MAX_REPS_PER_SET = 15
+CONFIG_MIN_REPS_PER_SET = 3
+CONFIG_MAX_REPS_PER_SET = 12
 CONFIG_MAX_WEIGHT = 200
 
 #-----------------------------------------------------------------
