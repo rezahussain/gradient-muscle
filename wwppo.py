@@ -1,3 +1,4 @@
+
 '''
 MIT License
 
@@ -26,7 +27,6 @@ SOFTWARE.
 # https://www.facebook.com/reza.hussain.98
 # reza@dormantlabs.com
 
-
 import copy
 import os
 import json
@@ -40,45 +40,140 @@ import math
 import CONFIG as CONFIG
 import warnings as warnings
 
-jsonfilenames = os.listdir(CONFIG.CONFIG_RAW_JSON_PATH)
 
-jsonfilenames.sort()
+def get_dir_names(dir):
+    return filter(lambda f: not f.startswith('.'), os.listdir(dir))
 
-jsonobjects = []
+class UserData():
+    def __init__(self,a_user_name):
 
-for i in range(len(jsonfilenames)):
-    d = open(CONFIG.CONFIG_RAW_JSON_PATH + jsonfilenames[i])
-    o = json.load(d)
-    jsonobjects.append(o)
+        self.user_name = a_user_name
 
-# we build one datapoint for each workoutday
-# it consists of
-# the workout
-# then the last workout
-# then all of the day vectors on the side in the range
-# so we build a range for each datapoint
-# based off of the workout lookback
+        self.json_raw_paths = []
+        json_filenames = get_dir_names(CONFIG.CONFIG_RAW_JSON_PATH + a_user_name)
+        for a_json_filename in json_filenames:
+            ajsonpath = CONFIG.CONFIG_RAW_JSON_PATH + a_user_name + "/" + a_json_filename
+            self.json_raw_paths.append(ajsonpath)
+        self.json_raw_paths.sort()
+
+        self.user_jos = []
+        for i in range(len(self.json_raw_paths)):
+            d = open(self.json_raw_paths[i])
+            o = json.load(d)
+            self.user_jos.append(o)
+
+        # we build one datapoint for each workoutday
+        # it consists of
+        # the workout
+        # then the last workout
+        # then all of the day vectors on the side in the range
+        # so we build a range for each datapoint
+        # based off of the workout lookback
+
+        self.workout_indexes = []
+        for i in range(len(self.user_jos)):
+            jo = self.user_jos[i]
+            if len(jo['workout_vector_arr']) > 0:
+                self.workout_indexes.append(i)
+
+        self.workout_ranges = []
+        for i in range(len(self.workout_indexes)):
+            behind = self.workout_indexes[:i]
+            if len(behind) > CONFIG.CONFIG_WORKOUT_LOOKBACK:
+                end = self.workout_indexes[i]
+                start = self.workout_indexes[i - CONFIG.CONFIG_WORKOUT_LOOKBACK]
+                self.workout_ranges.append([start, end])
 
 
-workout_indexes = []
 
-for i in range(len(jsonobjects)):
-    jo = jsonobjects[i]
-    # print jo['user_vector']
-    if len(jo['workout_vector_arr']) > 0:
-        workout_indexes.append(i)
 
-abc = None
+user_folders = get_dir_names(CONFIG.CONFIG_RAW_JSON_PATH)
 
-workout_ranges = []
-for i in range(len(workout_indexes)):
-    behind = workout_indexes[:i]
-    if len(behind) > CONFIG.CONFIG_WORKOUT_LOOKBACK:
-        end = workout_indexes[i]
-        start = workout_indexes[i - CONFIG.CONFIG_WORKOUT_LOOKBACK]
-        workout_ranges.append([start, end])
-        # if i-CONFIG_WORKOUT_LOOKBACK >= 0:
-        #    workout_ranges.append([i-CONFIG_WORKOUT_LOOKBACK,i])
+global_user_objs = []
+for user_folder in user_folders:
+    new_user = UserData(user_folder)
+    global_user_objs.append(new_user)
+
+global_pulled_muscle_vocabulary = []
+global_max_workout_range_array_len = 0
+global_exercise_vocabulary = []
+global_max_day_range_array_len = 0
+
+for a_user_obj in global_user_objs:
+
+    # ---------------------------------------------------------->
+    # build a vocabulary for the pulled muscle name
+
+    u_workout_indexes = a_user_obj.workout_indexes
+    u_json_objects = a_user_obj.user_jos
+    u_workout_ranges = a_user_obj.workout_ranges
+
+    for i in u_workout_indexes:
+        jo = u_json_objects[i]
+        workout_vector = jo["workout_vector_arr"]
+        for set in workout_vector:
+            if set["pulled_muscle_name"] not in global_pulled_muscle_vocabulary:
+                global_pulled_muscle_vocabulary.append(set["pulled_muscle_name"])
+
+    # ---------------------------------------------------------->
+    # need to build exercise name vocabulary
+
+    for i in u_workout_indexes:
+        jo = u_json_objects[i]
+        workout_vector = jo["workout_vector_arr"]
+        for set in workout_vector:
+            if set["exercise_name"] not in global_exercise_vocabulary:
+                global_exercise_vocabulary.append(set["exercise_name"])
+
+    # ---------------------------------------------------------->
+
+    # need to find max workout_arr length so we can pad
+    # all of the workouts to this length
+    # so we can train in batches
+    # bc batches need the same shapes
+
+    for r in u_workout_ranges:
+        workout_range_max_num_sets = 0
+        for xx in range(r[0], r[1] + 1):
+            workout_range_max_num_sets += len(u_json_objects[xx]["workout_vector_arr"])
+        if workout_range_max_num_sets > global_max_workout_range_array_len:
+            global_max_workout_range_array_len = workout_range_max_num_sets
+
+    Abc = None
+
+    # ---------------------------------------------------------->
+
+    # now we need to find max range day length so we can pad
+    # all of the day series units to this length
+    # again so we can train in batches
+    # bc batches need the same shape
+
+    for r in u_workout_ranges:
+        #rdays = r[1] - r[0]
+        daysforrange = u_json_objects[r[0]:r[1]+1]#add 1 so the slice includes the last item
+        rdays = len(daysforrange)
+        if rdays > global_max_day_range_array_len:
+            global_max_day_range_array_len = rdays
+
+    ABC = None
+
+    #so because you can have ranges like 0,10
+    #it actually has 11 elements bc u start at 0
+    #so 10-0 gives 10 which is wrong
+    #then later 11 shows up which is correct
+    #and messes up the day_series batch size bc make raw units
+    # it pads to 10 instead of 11
+    #and there are 11 size elements in the mix
+    #so here we add 1
+    #to get the right num of elements when range is something like 0,10 (11 units bc u count 0)
+    #you can also get the elements using the range and then do a len
+    #but im just doing this here
+    #global_max_day_range_array_len += 1
+    #i actually decided to get the elements using the range then do a len
+
+    # ---------------------------------------------------------->
+
+
 
 
 # ---------------------------------------------------------->
@@ -117,70 +212,9 @@ time_vocabulary = generate_time_vocabulary()
 time_vocabulary.append(-1)
 # print time_vocabulary
 
-# ---------------------------------------------------------->
-# DONE---need to build a vocabulary for the pulled muscle name
-
-pulled_muscle_vocabulary = []
-for i in workout_indexes:
-    jo = jsonobjects[i]
-    workout_vector = jo["workout_vector_arr"]
-    for set in workout_vector:
-        if set["pulled_muscle_name"] not in pulled_muscle_vocabulary:
-            pulled_muscle_vocabulary.append(set["pulled_muscle_name"])
-
-# ---------------------------------------------------------->
-# need to build exercise name vocabulary
-
-exercise_vocabulary = []
-for i in workout_indexes:
-    jo = jsonobjects[i]
-    workout_vector = jo["workout_vector_arr"]
-    for set in workout_vector:
-        if set["exercise_name"] not in exercise_vocabulary:
-            exercise_vocabulary.append(set["exercise_name"])
-
-# ---------------------------------------------------------->
-
-# need to find max workout_arr length so we can pad
-# all of the workouts to this length
-# so we can train in batches
-# bc batches need the same shapes
-
-max_workout_range_array_len = 0
-
-for r in workout_ranges:
-    workout_range_max_num_sets = 0
-    for xx in range(r[0], r[1] + 1):
-        workout_range_max_num_sets += len(jsonobjects[xx]["workout_vector_arr"])
-    if workout_range_max_num_sets > max_workout_range_array_len:
-        max_workout_range_array_len = workout_range_max_num_sets
-
-Abc = None
-
-# ---------------------------------------------------------->
-
-# now we need to find max range day length so we can pad
-# all of the day series units to this length
-# again so we can train in batches
-# bc batches need the same shape
-
-max_day_range_array_len = 0
-for r in workout_ranges:
-    rdays = r[1] - r[0]
-    if rdays > max_day_range_array_len:
-        max_day_range_array_len = rdays
-
-# dk if this is a hack
-# bc it says 10 but then 11 shows up in the dataset
-max_day_range_array_len += 1
-
-Abc = None
-
-# ---------------------------------------------------------->
 
 # weight is in lbs
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
-
 
 REP_ADJUSTMENT_ACTIONS = [0,1,2,3,4,-1,-2,-3,-4]
 WEIGHT_MULTIPLIER_ACTIONS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
@@ -196,27 +230,345 @@ for y in REP_ADJUSTMENT_ACTIONS:
 for y in WEIGHT_MULTIPLIER_ACTIONS:
     rl_all_possible_actions.append(MULTIPLY_WEIGHT+"="+str(y))
 
-# for x in range(CONFIG.CONFIG_MIN_REPS_PER_SET, CONFIG.CONFIG_MAX_REPS_PER_SET + 1):
-#    for y in CHOOSABLE_MULTIPLIERS:
-#        rl_all_possible_actions.append("reps=" + str(x) + ":multiplier=" + str(y))
-
 LEAVE_GYM = "LEAVEGYM"
 NEXT_EXERCISE = "NEXTEXERCISE"
-
 rl_all_possible_actions.append(LEAVE_GYM)
 rl_all_possible_actions.append(NEXT_EXERCISE)
 
-ABC = None
-
-# old was 1356 for 200lb
-# new is 451 for 10 multipliers
-# the reward that the RL was able to get doubled from ~51 to 108
-# when I switched over to less RL actions
-# this means the RL has a hard time learning
+# RL has a hard time learning
 # when there are many choices
 
 # ---------------------------------------------------------->
 
+
+
+def make_raw_units():
+
+    for u in global_user_objs:
+
+        some_workout_ranges = u.workout_ranges
+
+        some_json_filenames = u.json_raw_paths
+
+        some_json_objects = u.user_jos
+
+        for r in some_workout_ranges:
+
+            # make a unit for each range
+            unit = {}
+            unit_user = {}
+            unit_days = []
+            unit_workouts = []
+            unit_y = []
+
+            per_set_workout = []
+
+            last_day_vector_workout_day_index = None
+
+            for xx in range(r[0], r[1] + 1):
+
+                debug_name = some_json_filenames[xx]
+                # build day array
+                # print xx
+                packaged_day = {}
+                packaged_day["heart_rate_variability_rmssd"] = some_json_objects[xx]["day_vector"]["heart_rate_variability_rmssd"]
+                packaged_day["post_day_wearable_calories_burned"] = some_json_objects[xx]["day_vector"][
+                    "post_day_wearable_calories_burned"]
+                packaged_day["post_day_calories_in"] = some_json_objects[xx]["day_vector"]["post_day_calories_in"]
+                packaged_day["post_day_protein_g"] = some_json_objects[xx]["day_vector"]["post_day_protein_g"]
+                packaged_day["post_day_carbs_g"] = some_json_objects[xx]["day_vector"]["post_day_carbs_g"]
+                packaged_day["post_day_fat_g"] = some_json_objects[xx]["day_vector"]["post_day_fat_g"]
+                packaged_day["withings_weight_lbs"] = some_json_objects[xx]["day_vector"]["withings_weight_lbs"]
+                packaged_day["withings_body_fat_percent"] = some_json_objects[xx]["day_vector"]["withings_body_fat_percent"]
+                packaged_day["withings_muscle_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_muscle_mass_percent"]
+                packaged_day["withings_body_water_percent"] = some_json_objects[xx]["day_vector"]["withings_body_water_percent"]
+                packaged_day["withings_heart_rate_bpm"] = some_json_objects[xx]["day_vector"]["withings_heart_rate_bpm"]
+                packaged_day["withings_bone_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_bone_mass_percent"]
+                packaged_day["withings_pulse_wave_velocity_m_per_s"] = some_json_objects[xx]["day_vector"][
+                    "withings_pulse_wave_velocity_m_per_s"]
+
+                sbtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
+                packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
+
+                srtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_rise_time_ampm"])
+                packaged_day["sleeptime_rise_time_ampm_index"] = srtap
+
+                packaged_day["sleeptime_efficiency_percent"] = some_json_objects[xx]["day_vector"]["sleeptime_efficiency_percent"]
+
+                sarap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
+                packaged_day["sleeptime_alarm_ring_ampm_index"] = sarap
+
+                sasap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
+                packaged_day["sleeptime_alarm_set_ampm_index"] = sasap
+
+                packaged_day["sleeptime_snoozed"] = some_json_objects[xx]["day_vector"]["sleeptime_snoozed"]
+
+                def getNumericalHour(hour_string):
+                    result = None
+                    if hour_string != -1:
+                        hours = hour_string.split(":")[0]
+                        minutes = hour_string.split(":")[1]
+                        result = float(hours) + (float(minutes) / 60.0)
+                    else:
+                        result = -1
+                    return result
+
+                sahrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_awake_hrs"])
+                packaged_day["sleeptime_awake_hrs"] = sahrs
+
+                slshrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_light_sleep_hrs"])
+                packaged_day["sleeptime_light_sleep_hrs"] = slshrs
+
+                sdrhrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_deep_rem_hrs"])
+                packaged_day["sleeptime_deep_rem_hrs"] = sdrhrs
+
+                days_since_last_workout = None
+                if last_day_vector_workout_day_index is not None:
+                    current_workout_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+                    last_workout_yyyymmdd = some_json_objects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
+                    days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
+                else:
+                    days_since_last_workout = 0
+                packaged_day["days_since_last_workout"] = days_since_last_workout
+                abc = len(packaged_day)
+                if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
+                    last_day_vector_workout_day_index = xx
+
+                # ------------------------------------------------------------
+
+                # if you modify the setup above make sure it is also modded
+                # in the pad unit_days below
+                unit_days.append(packaged_day)
+
+                # need to do it as one big one
+                # bc its easier to make sure that you do not include
+                # days that are ahead of the current work set
+                # but then still include days that are behind or at the current
+                # work set
+
+
+                if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
+
+                    for ii in range(len(some_json_objects[xx]["workout_vector_arr"])):
+
+                        exercise_name = some_json_objects[xx]["workout_vector_arr"][ii]["exercise_name"]
+                        reps_planned = some_json_objects[xx]["workout_vector_arr"][ii]["reps_planned"]
+                        reps_completed = some_json_objects[xx]["workout_vector_arr"][ii]["reps_completed"]
+                        weight_lbs = some_json_objects[xx]["workout_vector_arr"][ii]["weight_lbs"]
+
+                        postset_heartrate = some_json_objects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
+                        went_to_failure = some_json_objects[xx]["workout_vector_arr"][ii]["went_to_failure"]
+                        did_pull_muscle = some_json_objects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
+
+                        used_lifting_gear = some_json_objects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
+                        vmpsa = some_json_objects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
+
+                        # ------------------------------------------------------------------------
+
+
+                        packaged_workout = make_workout_step_human(
+                            exercise_name,
+                            reps_planned,
+                            reps_completed,
+                            weight_lbs,
+                            postset_heartrate,
+                            went_to_failure,
+                            did_pull_muscle,
+                            used_lifting_gear,
+                            unit_days,
+                            vmpsa
+                        )
+                        unit_workouts.append(packaged_workout)
+
+                        # ------------------------------------------------------------------------
+
+                        # so basically for each set in the workout_vector array
+                        # we make a train unit with x and y
+                        # in this we hollow out the x
+                        # then use the unhollowed out x for the y
+                        # so the model can learn to predict the values we hollowed out
+
+                        unit_workout_clone = unit_workouts[:]
+
+                        original = unit_workout_clone[-1]
+                        copyx = copy.deepcopy(original)
+                        # copyx = unit_workout_clone[-1][:]
+                        copyy = copy.deepcopy(copyx)
+
+                        # exercise_name categories
+                        # reps
+                        # weight_lbs
+                        copyx["reps_completed"] = -1  # reps_completed
+
+                        copyx["postset_heartrate"] = -1  # postset_heartrate
+                        copyx["went_to_failure"] = -1  # went to failure
+                        copyx["did_pull_muscle"] = -1
+
+                        # for iii in range(len(pulled_muscle_vocabulary)):
+                        #    copyx["category_pulled_muscle_"+str(iii)] = 0
+
+                        # used_lifting_gear
+                        # dayssincelastworkout
+
+                        # init the reps speeds to 0
+                        for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                            copyx["velocities_arr_" + str(iiii)] = 0
+
+                        unit_workout_clone[-1] = copyx
+
+                        # ---------------------------------------------------------------------
+
+                        # now pad the unit_workout_timeseries to the max range
+                        # we have seen, so make it the length of the workout with the max number
+                        # of sets that exists in our whole dataset
+                        # this makes it so we can train
+                        # batches bc for batches the inputs all have to have
+                        # the same shape for some reason
+
+                        unit_workout_clone_padded = unit_workout_clone[:]
+
+                        padx = copy.deepcopy(copyx)
+                        # exercise_name index
+                        for iii in range(len(global_exercise_vocabulary)):
+                            padx["category_exercise_name_" + str(iii)] = 0
+                        padx["reps_planned"] = -1
+                        padx["reps_completed"] = -1
+                        padx["weight_lbs"] = -1
+
+                        padx["postset_heartrate"] = -1
+                        padx["went_to_failure"] = 0
+                        padx["did_pull_muscle"] = 0
+
+                        padx["used_lifting_gear"] = 0
+                        padx["days_since_last_workout"] = 0
+                        # init the reps speeds to 0
+                        for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                            padx["velocities_arr_" + str(iiii)] = 0
+
+                        while len(unit_workout_clone_padded) < global_max_workout_range_array_len:
+                            unit_workout_clone_padded.insert(0, padx)
+
+                        # ---------------------------------------------------------------------
+
+                        # now pad the day series to the max range
+                        # we have seen, so we can train using batches
+                        # bc batches need the same size shapes
+
+                        unit_days_padded = unit_days[:]
+
+                        packaged_day_padded = {}
+                        packaged_day_padded["heart_rate_variability_rmssd"] = -1
+                        packaged_day_padded["post_day_wearable_calories_burned"] = -1
+                        packaged_day_padded["post_day_calories_in"] = -1
+                        packaged_day_padded["post_day_protein_g"] = -1
+                        packaged_day_padded["post_day_carbs_g"] = -1
+                        packaged_day_padded["post_day_fat_g"] = -1
+                        packaged_day_padded["withings_weight_lbs"] = -1
+                        packaged_day_padded["withings_body_fat_percent"] = -1
+                        packaged_day_padded["withings_muscle_mass_percent"] = -1
+                        packaged_day_padded["withings_body_water_percent"] = -1
+                        packaged_day_padded["withings_heart_rate_bpm"] = -1
+                        packaged_day_padded["withings_bone_mass_percent"] = -1
+                        packaged_day_padded["withings_pulse_wave_velocity_m_per_s"] = -1
+                        packaged_day_padded["sleeptime_bed_time_ampm_index"] = -1
+                        packaged_day_padded["sleeptime_rise_time_ampm_index"] = -1
+                        packaged_day_padded["sleeptime_efficiency_percent"] = -1
+
+                        packaged_day_padded["sleeptime_alarm_ring_ampm_index"] = -1
+                        packaged_day_padded["sleeptime_alarm_set_ampm_index"] = -1
+                        packaged_day_padded["sleeptime_snoozed"] = -1
+
+                        packaged_day_padded["sleeptime_awake_hrs"] = -1
+                        packaged_day_padded["sleeptime_light_sleep_hrs"] = -1
+                        packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
+                        packaged_day_padded["days_since_last_workout"] = -1
+
+                        while len(unit_days_padded) < global_max_day_range_array_len:
+                            unit_days_padded.insert(0, packaged_day_padded)
+
+                        ABC = len(unit_days_padded)
+                        DEF = None
+
+                        # ---------------------------------------------------------------------
+
+
+                        # only want to train it with at least one of
+                        # the measured exertions
+                        # heartrate or speed
+
+
+
+
+                        has_heartrate = True
+                        if (
+                                    copyy["postset_heartrate"] == -1
+
+                        ):
+                            has_heartrate = False
+
+                        has_velocities = False
+                        for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                            if copyy["velocities_arr_" + str(iiii)] > 0.0:
+                                has_velocities = True
+
+                        has_valid_y = False
+
+                        if has_velocities and has_heartrate:
+                            has_valid_y = True
+
+                            # UPDATE: model gets horrible with either
+                            # need to use both or one or the other
+
+                            # not sure how I feel about using either
+                            # instead of and
+                            # but some lifters will not record hr
+                            # might have to branch model out
+                            # but training it together gives it a better
+                            # understanding even with partial data
+
+                        copyyy = {}
+                        copyyy["reps_completed"] = copyy["reps_completed"]
+                        copyyy["postset_heartrate"] = copyy["postset_heartrate"]
+                        copyyy["went_to_failure"] = copyy["went_to_failure"]
+                        copyyy["did_pull_muscle"] = copyy["did_pull_muscle"]
+                        for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
+                            copyyy["velocities_arr_" + str(iiii)] = copyy["velocities_arr_" + str(iiii)]
+
+                        ABC = None
+
+                        userjson = some_json_objects[xx]["user_vector"]
+                        userx = {}
+                        userx["genetically_gifted"] = userjson["genetically_gifted"]
+                        userx["years_old"] = userjson["years_old"]
+                        userx["wrist_width_inches"] = userjson["wrist_width_inches"]
+                        userx["ankle_width_inches"] = userjson["ankle_width_inches"]
+                        userx["sex_is_male"] = userjson["sex_is_male"]
+                        userx["height_inches"] = userjson["height_inches"]
+                        userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
+
+                        # this is what we r gonna package for the NN
+                        workoutxseries = unit_workout_clone_padded[:]
+                        workouty = copy.deepcopy(copyyy)
+                        dayseries = unit_days_padded[:]
+                        userx = userx
+
+                        wholeTrainUnit = {}
+                        wholeTrainUnit["workoutxseries"] = workoutxseries
+                        wholeTrainUnit["workouty"] = workouty
+                        wholeTrainUnit["dayseriesx"] = dayseries
+                        wholeTrainUnit["userx"] = userx
+
+                        savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
+                        savename = savename + u.user_name
+
+                        if has_valid_y:
+                            pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + savename, "wb"))
+
+
+
+
+
+# ---------------------------------------------------------->
 
 def calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd):
     cwyyyy = int(current_workout_yyyymmdd[0:4])
@@ -261,12 +613,12 @@ def make_workout_step_human(
     packaged_workout = {}
 
     # use a hot vector for which exercise they r doing
-    for iii in range(len(exercise_vocabulary)):
+    for iii in range(len(global_exercise_vocabulary)):
         packaged_workout["category_exercise_name_" + str(iii)] = 0
     ex_name = exercise_name
 
     if ex_name is not -1:
-        en = exercise_vocabulary.index(ex_name)
+        en = global_exercise_vocabulary.index(ex_name)
         packaged_workout["category_exercise_name_" + str(en)] = 1
 
     packaged_workout["reps_planned"] = reps_planned
@@ -326,328 +678,6 @@ def make_workout_step_human(
 # ---------------------------------------------------------->
 
 
-print workout_ranges
-
-
-def make_raw_units():
-    for r in workout_ranges:
-
-        # make a unit for each range
-        unit = {}
-        unit_user = {}
-        unit_days = []
-        unit_workouts = []
-        unit_y = []
-
-        per_set_workout = []
-
-        last_day_vector_workout_day_index = None
-
-        for xx in range(r[0], r[1] + 1):
-
-            debug_name = jsonfilenames[xx]
-            # build day array
-            # print xx
-            packaged_day = {}
-            packaged_day["heart_rate_variability_rmssd"] = jsonobjects[xx]["day_vector"]["heart_rate_variability_rmssd"]
-            packaged_day["post_day_wearable_calories_burned"] = jsonobjects[xx]["day_vector"][
-                "post_day_wearable_calories_burned"]
-            packaged_day["post_day_calories_in"] = jsonobjects[xx]["day_vector"]["post_day_calories_in"]
-            packaged_day["post_day_protein_g"] = jsonobjects[xx]["day_vector"]["post_day_protein_g"]
-            packaged_day["post_day_carbs_g"] = jsonobjects[xx]["day_vector"]["post_day_carbs_g"]
-            packaged_day["post_day_fat_g"] = jsonobjects[xx]["day_vector"]["post_day_fat_g"]
-            packaged_day["withings_weight_lbs"] = jsonobjects[xx]["day_vector"]["withings_weight_lbs"]
-            packaged_day["withings_body_fat_percent"] = jsonobjects[xx]["day_vector"]["withings_body_fat_percent"]
-            packaged_day["withings_muscle_mass_percent"] = jsonobjects[xx]["day_vector"]["withings_muscle_mass_percent"]
-            packaged_day["withings_body_water_percent"] = jsonobjects[xx]["day_vector"]["withings_body_water_percent"]
-            packaged_day["withings_heart_rate_bpm"] = jsonobjects[xx]["day_vector"]["withings_heart_rate_bpm"]
-            packaged_day["withings_bone_mass_percent"] = jsonobjects[xx]["day_vector"]["withings_bone_mass_percent"]
-            packaged_day["withings_pulse_wave_velocity_m_per_s"] = jsonobjects[xx]["day_vector"][
-                "withings_pulse_wave_velocity_m_per_s"]
-
-            sbtap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
-            packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
-
-            srtap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_rise_time_ampm"])
-            packaged_day["sleeptime_rise_time_ampm_index"] = srtap
-
-            packaged_day["sleeptime_efficiency_percent"] = jsonobjects[xx]["day_vector"]["sleeptime_efficiency_percent"]
-
-            sarap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
-            packaged_day["sleeptime_alarm_ring_ampm_index"] = sarap
-
-            sasap = time_vocabulary.index(jsonobjects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
-            packaged_day["sleeptime_alarm_set_ampm_index"] = sasap
-
-            packaged_day["sleeptime_snoozed"] = jsonobjects[xx]["day_vector"]["sleeptime_snoozed"]
-
-            def getNumericalHour(hour_string):
-                result = None
-                if hour_string != -1:
-                    hours = hour_string.split(":")[0]
-                    minutes = hour_string.split(":")[1]
-                    result = float(hours) + (float(minutes) / 60.0)
-                else:
-                    result = -1
-                return result
-
-            sahrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_awake_hrs"])
-            packaged_day["sleeptime_awake_hrs"] = sahrs
-
-            slshrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_light_sleep_hrs"])
-            packaged_day["sleeptime_light_sleep_hrs"] = slshrs
-
-            sdrhrs = getNumericalHour(jsonobjects[xx]["day_vector"]["sleeptime_deep_rem_hrs"])
-            packaged_day["sleeptime_deep_rem_hrs"] = sdrhrs
-
-            days_since_last_workout = None
-            if last_day_vector_workout_day_index is not None:
-                current_workout_yyyymmdd = jsonobjects[xx]["day_vector"]["date_yyyymmdd"]
-                last_workout_yyyymmdd = jsonobjects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
-                days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
-            else:
-                days_since_last_workout = 0
-            packaged_day["days_since_last_workout"] = days_since_last_workout
-            abc = len(packaged_day)
-            if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
-                last_day_vector_workout_day_index = xx
-
-            # ------------------------------------------------------------
-
-            # if you modify the setup above make sure it is also modded
-            # in the pad unit_days below
-            unit_days.append(packaged_day)
-
-            # need to do it as one big one
-            # bc its easier to make sure that you do not include
-            # days that are ahead of the current work set
-            # but then still include days that are behind or at the current
-            # work set
-
-
-            if len(jsonobjects[xx]["workout_vector_arr"]) > 0:
-
-                for ii in range(len(jsonobjects[xx]["workout_vector_arr"])):
-
-                    exercise_name = jsonobjects[xx]["workout_vector_arr"][ii]["exercise_name"]
-                    reps_planned = jsonobjects[xx]["workout_vector_arr"][ii]["reps_planned"]
-                    reps_completed = jsonobjects[xx]["workout_vector_arr"][ii]["reps_completed"]
-                    weight_lbs = jsonobjects[xx]["workout_vector_arr"][ii]["weight_lbs"]
-
-                    postset_heartrate = jsonobjects[xx]["workout_vector_arr"][ii]["postset_heartrate"]
-                    went_to_failure = jsonobjects[xx]["workout_vector_arr"][ii]["went_to_failure"]
-                    did_pull_muscle = jsonobjects[xx]["workout_vector_arr"][ii]["did_pull_muscle"]
-
-                    used_lifting_gear = jsonobjects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
-                    vmpsa = jsonobjects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
-
-                    # ------------------------------------------------------------------------
-
-
-                    packaged_workout = make_workout_step_human(
-                        exercise_name,
-                        reps_planned,
-                        reps_completed,
-                        weight_lbs,
-                        postset_heartrate,
-                        went_to_failure,
-                        did_pull_muscle,
-                        used_lifting_gear,
-                        unit_days,
-                        vmpsa
-                    )
-                    unit_workouts.append(packaged_workout)
-
-                    # ------------------------------------------------------------------------
-
-                    # so basically for each set in the workout_vector array
-                    # we make a train unit with x and y
-                    # in this we hollow out the x
-                    # then use the unhollowed out x for the y
-                    # so the model can learn to predict the values we hollowed out
-
-                    unit_workout_clone = unit_workouts[:]
-
-                    original = unit_workout_clone[-1]
-                    copyx = copy.deepcopy(original)
-                    # copyx = unit_workout_clone[-1][:]
-                    copyy = copy.deepcopy(copyx)
-
-                    # exercise_name categories
-                    # reps
-                    # weight_lbs
-                    copyx["reps_completed"] = -1  # reps_completed
-
-                    copyx["postset_heartrate"] = -1  # postset_heartrate
-                    copyx["went_to_failure"] = -1  # went to failure
-                    copyx["did_pull_muscle"] = -1
-
-                    # for iii in range(len(pulled_muscle_vocabulary)):
-                    #    copyx["category_pulled_muscle_"+str(iii)] = 0
-
-                    # used_lifting_gear
-                    # dayssincelastworkout
-
-                    # init the reps speeds to 0
-                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        copyx["velocities_arr_" + str(iiii)] = 0
-
-                    unit_workout_clone[-1] = copyx
-
-                    # ---------------------------------------------------------------------
-
-                    # now pad the unit_workout_timeseries to the max range
-                    # we have seen, so make it the length of the workout with the max number
-                    # of sets that exists in our whole dataset
-                    # this makes it so we can train
-                    # batches bc for batches the inputs all have to have
-                    # the same shape for some reason
-
-                    unit_workout_clone_padded = unit_workout_clone[:]
-
-                    padx = copy.deepcopy(copyx)
-                    # exercise_name index
-                    for iii in range(len(exercise_vocabulary)):
-                        padx["category_exercise_name_" + str(iii)] = 0
-                    padx["reps_planned"] = -1
-                    padx["reps_completed"] = -1
-                    padx["weight_lbs"] = -1
-
-                    padx["postset_heartrate"] = -1
-                    padx["went_to_failure"] = 0
-                    padx["did_pull_muscle"] = 0
-
-                    padx["used_lifting_gear"] = 0
-                    padx["days_since_last_workout"] = 0
-                    # init the reps speeds to 0
-                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        padx["velocities_arr_" + str(iiii)] = 0
-
-                    while len(unit_workout_clone_padded) < max_workout_range_array_len:
-                        unit_workout_clone_padded.insert(0, padx)
-
-                    # ---------------------------------------------------------------------
-
-                    # now pad the day series to the max range
-                    # we have seen, so we can train using batches
-                    # bc batches need the same size shapes
-
-                    unit_days_padded = unit_days[:]
-
-                    packaged_day_padded = {}
-                    packaged_day_padded["heart_rate_variability_rmssd"] = -1
-                    packaged_day_padded["post_day_wearable_calories_burned"] = -1
-                    packaged_day_padded["post_day_calories_in"] = -1
-                    packaged_day_padded["post_day_protein_g"] = -1
-                    packaged_day_padded["post_day_carbs_g"] = -1
-                    packaged_day_padded["post_day_fat_g"] = -1
-                    packaged_day_padded["withings_weight_lbs"] = -1
-                    packaged_day_padded["withings_body_fat_percent"] = -1
-                    packaged_day_padded["withings_muscle_mass_percent"] = -1
-                    packaged_day_padded["withings_body_water_percent"] = -1
-                    packaged_day_padded["withings_heart_rate_bpm"] = -1
-                    packaged_day_padded["withings_bone_mass_percent"] = -1
-                    packaged_day_padded["withings_pulse_wave_velocity_m_per_s"] = -1
-                    packaged_day_padded["sleeptime_bed_time_ampm_index"] = -1
-                    packaged_day_padded["sleeptime_rise_time_ampm_index"] = -1
-                    packaged_day_padded["sleeptime_efficiency_percent"] = -1
-
-                    packaged_day_padded["sleeptime_alarm_ring_ampm_index"] = -1
-                    packaged_day_padded["sleeptime_alarm_set_ampm_index"] = -1
-                    packaged_day_padded["sleeptime_snoozed"] = -1
-
-                    packaged_day_padded["sleeptime_awake_hrs"] = -1
-                    packaged_day_padded["sleeptime_light_sleep_hrs"] = -1
-                    packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
-                    packaged_day_padded["days_since_last_workout"] = -1
-
-                    while len(unit_days_padded) < max_day_range_array_len:
-                        unit_days_padded.insert(0, packaged_day_padded)
-
-                    ABC = len(unit_days_padded)
-                    DEF = None
-
-                    # ---------------------------------------------------------------------
-
-
-                    # only want to train it with at least one of
-                    # the measured exertions
-                    # heartrate or speed
-
-
-
-
-                    has_heartrate = True
-                    if (
-                                copyy["postset_heartrate"] == -1
-
-                    ):
-                        has_heartrate = False
-
-                    has_velocities = False
-                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        if copyy["velocities_arr_" + str(iiii)] > 0.0:
-                            has_velocities = True
-
-                    has_valid_y = False
-
-                    if has_velocities and has_heartrate:
-                        has_valid_y = True
-
-                        # UPDATE: model gets horrible with either
-                        # need to use both or one or the other
-
-                        # not sure how I feel about using either
-                        # instead of and
-                        # but some lifters will not record hr
-                        # might have to branch model out
-                        # but training it together gives it a better
-                        # understanding even with partial data
-
-                    copyyy = {}
-                    copyyy["reps_completed"] = copyy["reps_completed"]
-                    copyyy["postset_heartrate"] = copyy["postset_heartrate"]
-                    copyyy["went_to_failure"] = copyy["went_to_failure"]
-                    copyyy["did_pull_muscle"] = copyy["did_pull_muscle"]
-                    for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
-                        copyyy["velocities_arr_" + str(iiii)] = copyy["velocities_arr_" + str(iiii)]
-
-                    ABC = None
-
-                    userjson = jsonobjects[xx]["user_vector"]
-                    userx = {}
-                    userx["genetically_gifted"] = userjson["genetically_gifted"]
-                    userx["years_old"] = userjson["years_old"]
-                    userx["wrist_width_inches"] = userjson["wrist_width_inches"]
-                    userx["ankle_width_inches"] = userjson["ankle_width_inches"]
-                    userx["sex_is_male"] = userjson["sex_is_male"]
-                    userx["height_inches"] = userjson["height_inches"]
-                    userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
-
-                    # this is what we r gonna package for the NN
-                    workoutxseries = unit_workout_clone_padded[:]
-                    workouty = copy.deepcopy(copyyy)
-                    dayseries = unit_days_padded[:]
-                    userx = userx
-
-                    wholeTrainUnit = {}
-                    wholeTrainUnit["workoutxseries"] = workoutxseries
-                    wholeTrainUnit["workouty"] = workouty
-                    wholeTrainUnit["dayseriesx"] = dayseries
-                    wholeTrainUnit["userx"] = userx
-
-                    savename = jsonobjects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
-
-                    if has_valid_y:
-                        pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + savename, "wb"))
-
-
-def get_raw_pickle_filenames():
-    picklefilenames = os.listdir(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
-    if ".DS_Store" in picklefilenames:
-        picklefilenames.remove(".DS_Store")
-    return picklefilenames
-
 
 def get_norm_values():
     normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
@@ -655,7 +685,7 @@ def get_norm_values():
 
 
 def write_norm_values():
-    picklefilenames = get_raw_pickle_filenames()
+    picklefilenames = get_unit_names()
 
     unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilenames[0], "rb"))
 
@@ -913,29 +943,23 @@ def denormalize_workout_series_individual_timestep(n_workout_timestep, days_seri
 
 
 def get_unit_names():
-    picklefilenames = os.listdir(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
-    if ".DS_Store" in picklefilenames:
-        picklefilenames.remove(".DS_Store")
+    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
     return picklefilenames
-
 
 def get_human_unit_for_name(unit_name):
     unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + unit_name, "rb"))
     return unpickled_package
-
 
 def get_machine_unit_for_name(unit_name, norm_vals):
     human_unit = get_human_unit_for_name(unit_name)
     machine_unit = normalize_unit(human_unit, norm_vals)
     return machine_unit
 
-
 def convert_human_unit_to_machine(h_unit, norm_vals):
     m_unit = normalize_unit(h_unit, norm_vals)
     return m_unit
 
 
-# a_unit = getUnitForName(all_names[0])
 
 class Lift_NN():
     def __init__(self, a_dayseriesx, a_userx, a_workoutxseries, a_workouty, CHOSEN_BATCH_SIZE):
@@ -1680,7 +1704,7 @@ def train_rl_agent():
                         # repset patterns to get reward but not actually increase
                         # the user's max force over time
 
-                        ex_index = exercise_vocabulary.index(exercise_name)
+                        ex_index = global_exercise_vocabulary.index(exercise_name)
                         ex_key = "category_exercise_name_"+str(ex_index)
 
                         last_seen_index = None
@@ -2381,7 +2405,7 @@ def rl_provide_recommendation_based_on_latest():
                 # repset patterns to get reward but not actually increase
                 # the user's max force over time
 
-                ex_index = exercise_vocabulary.index(exercise_name)
+                ex_index = global_exercise_vocabulary.index(exercise_name)
                 ex_key = "category_exercise_name_"+str(ex_index)
 
                 last_seen_index = None
@@ -2483,8 +2507,8 @@ def rl_provide_recommendation_based_on_latest():
 
 
 
-#train_stress_adaptation_model()
-train_rl_agent()
+train_stress_adaptation_model()
+#train_rl_agent()
 #rl_provide_recommendation_based_on_latest()
 
 

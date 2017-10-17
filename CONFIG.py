@@ -28,7 +28,7 @@ CONFIG_NUM_EPOCHS = 20000000
 CONFIG_MODEL_NAME = "stressmodel"
 CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/"
 
-CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradient-muscle/workoutdata/rezadata/"
+CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradient-muscle/workoutdata/"
 
 #need to make these next three
 CONFIG_NN_HUMAN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
