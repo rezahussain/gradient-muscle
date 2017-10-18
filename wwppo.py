@@ -640,6 +640,18 @@ def make_workout_step_human(
 
     vmpsa = velocities_m_per_s_arr
     velarr = []
+
+    if reps_completed == 0:
+        #so for completly failed reps they have no velocity
+        #so they do not go into the set that the stressmodel trains on
+        #so the stressmodel doesnt see them
+        #need to mod it so that the stress model can be exposed to these
+        #ones to see the outcome so if completed reps =0
+        #then for velocity sub in zeroes
+        vmpsa = [0.0]
+
+
+
     if vmpsa != -1:
         velarr.extend(vmpsa)
 
