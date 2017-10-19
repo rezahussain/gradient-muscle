@@ -646,7 +646,7 @@ def make_workout_step_human(
         #so they do not go into the set that the stressmodel trains on
         #so the stressmodel doesnt see them
         #need to mod it so that the stress model can be exposed to these
-        #ones to see the outcome so if completed reps =0
+        #ones to see the outcome so if completed reps = 0
         #then for velocity sub in zeroes
         vmpsa = [0.0]
 
@@ -2328,7 +2328,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 # epochs to use
 # receipt
 
-def rl_provide_recommendation_based_on_latest():
+def rl_provide_recommendation_based_on_latest(user_name):
 
     all_names = get_unit_names()
     norm_vals = get_norm_values()
@@ -2519,9 +2519,9 @@ def rl_provide_recommendation_based_on_latest():
 
 
 
-train_stress_adaptation_model()
+#train_stress_adaptation_model()
 #train_rl_agent()
-#rl_provide_recommendation_based_on_latest()
+rl_provide_recommendation_based_on_latest()
 
 
 
