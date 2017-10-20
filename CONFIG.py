@@ -23,19 +23,19 @@ SOFTWARE.
 '''
 
 
-CONFIG_NUM_EPOCHS = 20000000
+CONFIG_NUM_EPOCHS = 20000
 
 CONFIG_MODEL_NAME = "stressmodel"
-CONFIG_SAVE_MODEL_LOCATION = "/Users/admin/Desktop/tmp/"
+CONFIG_SAVE_MODEL_LOCATION = "./tmp/"
 
-CONFIG_RAW_JSON_PATH = "/Users/admin/PycharmProjects/rezapycharmprojects/gradient-muscle/workoutdata/"
+CONFIG_RAW_JSON_PATH = "./workoutdata/"
 
 #need to make these next three
-CONFIG_NN_HUMAN_PICKLES_PATH = "/Users/admin/Desktop/tmp/nnpickles_folder/"
-CONFIG_NORMALIZE_VALS_PATH = "/Users/admin/Desktop/tmp/normvals"
+CONFIG_NN_HUMAN_PICKLES_PATH = "./tmp/nnpickles_folder/"
+CONFIG_NORMALIZE_VALS_PATH = "./tmp/normvals"
 
 CONFIG_WORKOUT_LOOKBACK = 2
-CONFIG_BATCH_SIZE = 6
+CONFIG_BATCH_SIZE = 9
 CONFIG_MIN_REPS_PER_SET = 3
 CONFIG_MAX_REPS_PER_SET = 12
 CONFIG_MAX_WEIGHT = 200

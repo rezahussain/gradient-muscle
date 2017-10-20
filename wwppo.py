@@ -217,18 +217,19 @@ time_vocabulary.append(-1)
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
 
 REP_ADJUSTMENT_ACTIONS = [0,1,2,3,4,-1,-2,-3,-4]
-WEIGHT_MULTIPLIER_ACTIONS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
+#WEIGHT_MULTIPLIER_ACTIONS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
+WEIGHT_ADJUSTMENT_ACTIONS = [0,5,10,50,70,90,-5,-10,-50,-70,-90]
 # now we need to make all of the combos the RLAgent can pick
 
 rl_all_possible_actions = []
 
 ADJUST_REPS = "ADJUSTREPS"
-MULTIPLY_WEIGHT = "MULTIPLYWEIGHT"
+ADJUST_WEIGHT = "MULTIPLYWEIGHT"
 
 for y in REP_ADJUSTMENT_ACTIONS:
     rl_all_possible_actions.append(ADJUST_REPS+"="+str(y))
-for y in WEIGHT_MULTIPLIER_ACTIONS:
-    rl_all_possible_actions.append(MULTIPLY_WEIGHT+"="+str(y))
+for y in WEIGHT_ADJUSTMENT_ACTIONS:
+    rl_all_possible_actions.append(ADJUST_WEIGHT+"="+str(y))
 
 LEAVE_GYM = "LEAVEGYM"
 NEXT_EXERCISE = "NEXTEXERCISE"
@@ -622,6 +623,11 @@ def make_workout_step_human(
         packaged_workout["category_exercise_name_" + str(en)] = 1
 
     packaged_workout["reps_planned"] = reps_planned
+
+    if reps_completed > CONFIG.CONFIG_MAX_REPS_PER_SET:
+        reps_completed = CONFIG.CONFIG_MAX_REPS_PER_SET
+    #do not cap min reps_completed bc it would be zero if they fail
+
     packaged_workout["reps_completed"] = reps_completed
     packaged_workout["weight_lbs"] = weight_lbs
 
@@ -1417,10 +1423,13 @@ def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
     return workout_y_batch, workout_series_batch, user_x_batch, day_series_batch
 
 
-def train_stress_adaptation_model():
-
+def generate_training_data():
     make_raw_units()
     write_norm_values()
+
+def train_stress_adaptation_model():
+
+
 
     all_names = get_unit_names()
     norm_vals = get_norm_values()
@@ -2063,10 +2072,10 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         if action_planned_reps_human > CONFIG.CONFIG_MAX_REPS_PER_SET:
             action_planned_reps_human = CONFIG.CONFIG_MAX_REPS_PER_SET
 
-    if MULTIPLY_WEIGHT in action:
-        weight_multiplication = action.split("=")[1]
+    if ADJUST_WEIGHT in action:
+        weight_adjustment = action.split("=")[1]
         last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
-        new_weight_lbs = last_weight_lbs + (float(weight_multiplication)*last_weight_lbs)
+        new_weight_lbs = last_weight_lbs + (float(weight_adjustment)*last_weight_lbs)
         action_planned_weight_human = new_weight_lbs
 
 
@@ -2368,8 +2377,37 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         missed_reps_penalty = last_planned_reps - last_completed_reps
         reward = reward - missed_reps_penalty
 
+        # I thought about this some more
+        # it might be ok to just subtract the weight from the reward as a penalty
+        # because if all the reps didnt complete maybe it is a 'failed' set
+
 
         #------------------------------------------------------------------------------------------------------------
+
+        # so it gives a probability for pulled muscle
+        # so we use that probability to simulate in the environment whether they pull their muscle
+        # if pulled muscle do a random percentage with the pulled muscle chance
+        # and if it pulls then end the episode
+
+        last_workout_step = state_h["workoutxseries"][-1]
+        did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
+        if did_pull_muscle_chance > 0:
+            simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
+            if simulate_pulled_muscle is True:
+                end_episode = True
+
+        #------------------------------------------------------------------------------------------------------------
+
+        #do the same thing for failure, if fail end the episode
+        last_workout_step = state_h["workoutxseries"][-1]
+        did_failure_chance = float(last_workout_step["went_to_failure"])
+        if did_failure_chance > 0:
+            simulate_failure = np.random.choice([True,False],p=[did_failure_chance,1-did_failure_chance])
+            if simulate_failure is True:
+                end_episode = True
+
+        #------------------------------------------------------------------------------------------------------------
+
 
         ABC = None
 
@@ -2385,6 +2423,10 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
     all_names = get_unit_names()
     norm_vals = get_norm_values()
+
+    user_sample_names = [k for k in all_names if user_name in k]
+    all_names = user_sample_names
+    sorted(all_names)
 
     loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
     some_day_series = loaded_unit["dayseriesx"]
@@ -2447,7 +2489,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-
+#generate_training_data()
 #train_stress_adaptation_model()
 #train_rl_agent()
 rl_provide_recommendation_based_on_latest("rezahussain")
