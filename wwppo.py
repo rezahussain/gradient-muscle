@@ -37,8 +37,10 @@ from random import shuffle
 import datetime
 import calendar
 import math
-import CONFIG as CONFIG
 import warnings as warnings
+import sys
+
+import CONFIG as CONFIG
 
 
 def get_dir_names(dir):
@@ -2075,7 +2077,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
     if ADJUST_WEIGHT in action:
         weight_adjustment = action.split("=")[1]
         last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
-        new_weight_lbs = last_weight_lbs + (float(weight_adjustment)*last_weight_lbs)
+        new_weight_lbs = last_weight_lbs + float(weight_adjustment)
         action_planned_weight_human = new_weight_lbs
 
 
@@ -2492,7 +2494,33 @@ def rl_provide_recommendation_based_on_latest(user_name):
 #generate_training_data()
 #train_stress_adaptation_model()
 #train_rl_agent()
-rl_provide_recommendation_based_on_latest("rezahussain")
+#rl_provide_recommendation_based_on_latest("rezahussain")
+
+
+
+GENERATE_DATA_COMMAND = "generatedata"
+TRAIN_STRESS_MODEL_COMMAND = "trainstressmodel"
+TRAIN_RL_AGENT_COMMAND = "trainrlagent"
+RECOMMEND_COMMAND = "recommend"
+
+if len(sys.argv)==1:
+    print "Command choices are:"
+    print GENERATE_DATA_COMMAND
+    print TRAIN_STRESS_MODEL_COMMAND
+    print TRAIN_RL_AGENT_COMMAND
+    print RECOMMEND_COMMAND + " username_here"
+else:
+    command = sys.argv[1]
+
+    if command == GENERATE_DATA_COMMAND:
+        generate_training_data()
+    if command == TRAIN_STRESS_MODEL_COMMAND:
+        train_stress_adaptation_model()
+    if command == TRAIN_RL_AGENT_COMMAND:
+        train_rl_agent()
+    if command == RECOMMEND_COMMAND:
+        user_name = sys.argv[2]
+        rl_provide_recommendation_based_on_latest(user_name)
 
 
 
