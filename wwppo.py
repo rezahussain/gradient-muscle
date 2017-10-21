@@ -1773,9 +1773,9 @@ def train_rl_agent():
                 gradBuffer[idx] += grad
 
             #diagnostic
-            #for entry in actions_episode_log_human:
-            #    print entry
-            #print "EPISODE OVER"
+            for entry in actions_episode_log_human:
+               print entry
+            print "EPISODE OVER"
             #for entry in reward_log_human:
             #    print entry
             ABC = None
@@ -1960,7 +1960,25 @@ def walk_episode_with_sample(a_sample_name,
         human_readable_action = None
         action_index = None
 
-        percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
+
+        # picking the random action probability is hard
+
+        # on one hand it encourages exploration
+        # on the other hand if you leave it fixed
+        # then say you do 10 random actions per 40 length episode
+        # you are deviating from the policy by 1/4th
+        # which makes the credit assignment problem of
+        # determining what action you took that caused the change
+        # that much more difficult
+
+        # if you leave it too small then it takes forever
+
+        # so it seems best if you use a decaying random probability
+        # or just set it low and train forever
+
+
+        percent_done = 0.96  # float(aepoch)/float(NUM_EPOCHS)
+        #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
         do_random_action = np.random.choice([True, False], p=[random_prob, not_random_prob])
@@ -1978,11 +1996,17 @@ def walk_episode_with_sample(a_sample_name,
             human_readable_action = oai_human_readable_action
             action_index = oai_index
 
+
         # print human_readable_action
+        action = human_readable_action
+
+        if i==0:
+            #make RL start with a clean slate, aka on a new day
+            action = LEAVE_GYM
 
 
         # now pass the chosen action + state to the env
-        action = human_readable_action
+
         state, reward, actions_episode_log_human, end_episode, reward_log_human = agent_world_take_step(state, action,
                                                                                                         alw, sess,
                                                                                                         actions_episode_log_human,
@@ -2078,8 +2102,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
 
     action_exercise_name_human = state_h["current_exercise"]
-    action_planned_reps_human = state_h["current_reps"]#state_h["workoutxseries"][-1]["reps_planned"]
-    action_planned_weight_human = state_h["current_weight"]#state_h["workoutxseries"][-1]["weight_lbs"]
+    action_planned_reps_human = state_h["current_reps"]
+    action_planned_weight_human = state_h["current_weight"]
 
     if ADJUST_REPS in action:
         rep_adjustment = action.split("=")[1]
@@ -2091,7 +2115,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
     if ADJUST_WEIGHT in action:
         weight_adjustment = action.split("=")[1]
-        last_weight_lbs = action_planned_weight_human#float(a_workout_series_h[-1]["weight_lbs"])
+        last_weight_lbs = action_planned_weight_human
         new_weight_lbs = last_weight_lbs + float(weight_adjustment)
         action_planned_weight_human = new_weight_lbs
 
@@ -2221,7 +2245,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h["rl_actions_started_index"] = state["rl_actions_started_index"]
         state_h["exercises_left"] = state["exercises_left"]
         state_h["current_exercise"] = state["current_exercise"]
-        state_h["current_weight"] = state["current_weight"]
+        state_h["current_weight"] = weight_lbs
         state_h["current_reps"] = state["current_reps"]
         # print a_workout_series_h[-1]
 
@@ -2407,22 +2431,33 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # if pulled muscle do a random percentage with the pulled muscle chance
         # and if it pulls then end the episode
 
+
+        # threshold is it has to be higher than 65%(1std) chance
+        # this is bc its really hard for the RL to learn when there is
+        # a 10% chance and it triggers
+        # it maes it very conservative about picking weights
+        # and then it starts picking 45 lbs bc those have the lowest chance
+
         last_workout_step = state_h["workoutxseries"][-1]
         did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
-        if did_pull_muscle_chance > 0:
+        if did_pull_muscle_chance > 0.65:
             simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
             if simulate_pulled_muscle is True:
                 end_episode = True
 
         #------------------------------------------------------------------------------------------------------------
 
-        #do the same thing for failure, if fail end the episode
+        #can do the same thing for failure, if fail end the episode
+        #but I dont really care if it goes to failure
+        #so commented out here
+        '''
         last_workout_step = state_h["workoutxseries"][-1]
         did_failure_chance = float(last_workout_step["went_to_failure"])
         if did_failure_chance > 0:
             simulate_failure = np.random.choice([True,False],p=[did_failure_chance,1-did_failure_chance])
             if simulate_failure is True:
                 end_episode = True
+        '''
 
         #------------------------------------------------------------------------------------------------------------
 
@@ -2509,7 +2544,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 #generate_training_data()
 #train_stress_adaptation_model()
-#rain_rl_agent()
+#train_rl_agent()
 rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
