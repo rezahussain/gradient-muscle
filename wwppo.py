@@ -24,6 +24,7 @@ SOFTWARE.
 '''
 
 # contact info:
+# https://www.linkedin.com/in/reza-hussain-34430066
 # https://www.facebook.com/reza.hussain.98
 # reza@dormantlabs.com
 
@@ -1431,8 +1432,6 @@ def generate_training_data():
 
 def train_stress_adaptation_model():
 
-
-
     all_names = get_unit_names()
     norm_vals = get_norm_values()
     loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
@@ -1443,7 +1442,7 @@ def train_stress_adaptation_model():
     some_workout_y = loaded_unit["workouty"]
     abc = None
     alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, CONFIG.CONFIG_BATCH_SIZE)
-    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
     sess.run(init_op)
 
@@ -1605,7 +1604,7 @@ def train_rl_agent():
     RL_BATCH_SIZE = 1
     alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
 
-    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
     sess.run(init_op)
 
@@ -1621,7 +1620,6 @@ def train_rl_agent():
     #alw.asaver.restore(sess, tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION))
 
     # alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
-
 
     # this shouldn't affect the stress model I think
     gradBuffer = sess.run(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent'))
@@ -1647,7 +1645,6 @@ def train_rl_agent():
         reward_per_sample = []
 
         for a_sample_name in all_names:
-
 
             state = {}
 
@@ -1693,7 +1690,7 @@ def train_rl_agent():
                                          workoutxseries_episode,
                                          actions_episode_log_human,
                                          reward_log_human):
-                '''
+            '''
 
 
 
@@ -1778,6 +1775,7 @@ def train_rl_agent():
             #diagnostic
             #for entry in actions_episode_log_human:
             #    print entry
+            #print "EPISODE OVER"
             #for entry in reward_log_human:
             #    print entry
             ABC = None
@@ -1856,6 +1854,8 @@ def walk_episode_with_sample(a_sample_name,
 
             state["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
             state["current_exercise"] = state["exercises_left"][0]
+            state["current_weight"] = CONFIG.MINIMUM_WEIGHT
+            state["current_reps"] = 6
 
             state["lastrewarddetectedindexes"] = {}
             for exercise_name in CHOOSABLE_EXERCISES:
@@ -1901,6 +1901,8 @@ def walk_episode_with_sample(a_sample_name,
             h_unit["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
             h_unit["exercises_left"] = state["exercises_left"]
             h_unit["current_exercise"] = state["current_exercise"]
+            h_unit["current_weight"] = state["current_weight"]
+            h_unit["current_reps"] = state["current_reps"]
 
             h_unit["rl_actions_started_index"] = state["rl_actions_started_index"] - 1
             if h_unit["rl_actions_started_index"] < 0:
@@ -2034,7 +2036,18 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         else:
             state_h["exercises_left"].pop(0)
             state_h["current_exercise"] = state_h["exercises_left"][0]
+        state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
+        state_h["current_reps"] = state_h["current_reps"]
         actions_episode_log_human.append("env " + NEXT_EXERCISE)
+
+        #sometimes you will see
+        #env squat 45.0 6
+        #env squat 45.0 6
+        #NEXT_EXERCISE
+        #env benchpress 55.0 6
+        #the reason is after it changed the exercise
+        #the next action was to adjust the weight
+
 
     if LEAVE_GYM in action:
 
@@ -2056,6 +2069,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
         state_h["current_exercise"] = state_h["exercises_left"][0]
+        state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
+        state_h["current_reps"] = CONFIG.STARTING_REPS
 
         actions_episode_log_human.append("env "+LEAVE_GYM)
         #print "env LEAVEGYM"
@@ -2063,8 +2078,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
 
     action_exercise_name_human = state_h["current_exercise"]
-    action_planned_reps_human = state_h["workoutxseries"][-1]["reps_planned"]
-    action_planned_weight_human = state_h["workoutxseries"][-1]["weight_lbs"]
+    action_planned_reps_human = state_h["current_reps"]#state_h["workoutxseries"][-1]["reps_planned"]
+    action_planned_weight_human = state_h["current_weight"]#state_h["workoutxseries"][-1]["weight_lbs"]
 
     if ADJUST_REPS in action:
         rep_adjustment = action.split("=")[1]
@@ -2076,7 +2091,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
     if ADJUST_WEIGHT in action:
         weight_adjustment = action.split("=")[1]
-        last_weight_lbs = float(a_workout_series_h[-1]["weight_lbs"])
+        last_weight_lbs = action_planned_weight_human#float(a_workout_series_h[-1]["weight_lbs"])
         new_weight_lbs = last_weight_lbs + float(weight_adjustment)
         action_planned_weight_human = new_weight_lbs
 
@@ -2094,12 +2109,11 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         new_weight_lbs = action_planned_weight_human
 
-        MINIMUM_WEIGHT = 45.0
-        MAXIMUM_WEIGHT = 1000.0
-        if new_weight_lbs < MINIMUM_WEIGHT:
-            new_weight_lbs = MINIMUM_WEIGHT
-        if new_weight_lbs > MAXIMUM_WEIGHT:
-            new_weight_lbs = MAXIMUM_WEIGHT
+
+        if new_weight_lbs < CONFIG.MINIMUM_WEIGHT:
+            new_weight_lbs = CONFIG.MINIMUM_WEIGHT
+        if new_weight_lbs > CONFIG.MAXIMUM_WEIGHT:
+            new_weight_lbs = CONFIG.MAXIMUM_WEIGHT
 
         weight_lbs = new_weight_lbs
 
@@ -2207,6 +2221,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h["rl_actions_started_index"] = state["rl_actions_started_index"]
         state_h["exercises_left"] = state["exercises_left"]
         state_h["current_exercise"] = state["current_exercise"]
+        state_h["current_weight"] = state["current_weight"]
+        state_h["current_reps"] = state["current_reps"]
         # print a_workout_series_h[-1]
 
         # now calculate reward from the last reward index----------------
@@ -2428,7 +2444,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
     user_sample_names = [k for k in all_names if user_name in k]
     all_names = user_sample_names
-    sorted(all_names)
+    all_names = sorted(all_names)
 
     loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
     some_day_series = loaded_unit["dayseriesx"]
@@ -2439,7 +2455,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
     RL_BATCH_SIZE = 1
     alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
 
-    init_op = tf.group(tf.global_variables_initializer(), tf.initialize_local_variables())
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
     sess.run(init_op)
 
@@ -2493,9 +2509,9 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 #generate_training_data()
 #train_stress_adaptation_model()
-#train_rl_agent()
-#rl_provide_recommendation_based_on_latest("rezahussain")
-
+#rain_rl_agent()
+rl_provide_recommendation_based_on_latest("rezahussain")
+sys.exit()
 
 
 GENERATE_DATA_COMMAND = "generatedata"
