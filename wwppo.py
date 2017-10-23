@@ -1773,9 +1773,9 @@ def train_rl_agent():
                 gradBuffer[idx] += grad
 
             #diagnostic
-            for entry in actions_episode_log_human:
-               print entry
-            print "EPISODE OVER"
+            #for entry in actions_episode_log_human:
+            #   print entry
+            #print "EPISODE OVER"
             #for entry in reward_log_human:
             #    print entry
             ABC = None
@@ -1977,7 +1977,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.96  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
@@ -2432,32 +2432,37 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # and if it pulls then end the episode
 
 
+        # this comment may be irrelevant now
+        # symptom was a bug I think
         # threshold is it has to be higher than 65%(1std) chance
         # this is bc its really hard for the RL to learn when there is
         # a 10% chance and it triggers
         # it maes it very conservative about picking weights
         # and then it starts picking 45 lbs bc those have the lowest chance
 
+        # but then again using a probability will make it less deterministic
+        # bc you could have the same action sequence twice with different results
+        # which will confuse the nn
+        # consider doing a fixed percentage, eg 65%?(1STD)
+
         last_workout_step = state_h["workoutxseries"][-1]
         did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
         if did_pull_muscle_chance > 0.65:
-            simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
-            if simulate_pulled_muscle is True:
-                end_episode = True
+            #simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
+            #if simulate_pulled_muscle is True:
+            end_episode = True
 
         #------------------------------------------------------------------------------------------------------------
 
         #can do the same thing for failure, if fail end the episode
-        #but I dont really care if it goes to failure
-        #so commented out here
-        '''
+
         last_workout_step = state_h["workoutxseries"][-1]
         did_failure_chance = float(last_workout_step["went_to_failure"])
-        if did_failure_chance > 0:
-            simulate_failure = np.random.choice([True,False],p=[did_failure_chance,1-did_failure_chance])
-            if simulate_failure is True:
-                end_episode = True
-        '''
+        if did_failure_chance > 0.65:
+            #simulate_failure = np.random.choice([True,False],p=[did_failure_chance,1-did_failure_chance])
+            #if simulate_failure is True:
+            end_episode = True
+
 
         #------------------------------------------------------------------------------------------------------------
 
