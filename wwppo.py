@@ -220,14 +220,13 @@ time_vocabulary.append(-1)
 CHOOSABLE_EXERCISES = ["squat", "benchpress", "deadlift"]
 
 REP_ADJUSTMENT_ACTIONS = [0,1,2,3,4,-1,-2,-3,-4]
-#WEIGHT_MULTIPLIER_ACTIONS = [-0.50,-0.25,-0.12,-0.05,0.50,0.25,0.12,0.05]
 WEIGHT_ADJUSTMENT_ACTIONS = [0,5,10,50,70,90,-5,-10,-50,-70,-90]
 # now we need to make all of the combos the RLAgent can pick
 
 rl_all_possible_actions = []
 
-ADJUST_REPS = "ADJUSTREPS"
-ADJUST_WEIGHT = "MULTIPLYWEIGHT"
+ADJUST_REPS = "ADJUST_REPS"
+ADJUST_WEIGHT = "ADJUST_WEIGHT"
 
 for y in REP_ADJUSTMENT_ACTIONS:
     rl_all_possible_actions.append(ADJUST_REPS+"="+str(y))
@@ -2102,8 +2101,13 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
 
     action_exercise_name_human = state_h["current_exercise"]
-    action_planned_reps_human = state_h["current_reps"]
     action_planned_weight_human = state_h["current_weight"]
+    action_planned_reps_human = state_h["current_reps"]
+
+    #print action_exercise_name_human
+    #print action_planned_weight_human
+    #print action_planned_reps_human
+
 
     if ADJUST_REPS in action:
         rep_adjustment = action.split("=")[1]
@@ -2113,11 +2117,14 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         if action_planned_reps_human > CONFIG.CONFIG_MAX_REPS_PER_SET:
             action_planned_reps_human = CONFIG.CONFIG_MAX_REPS_PER_SET
 
+    #print action_planned_reps_human
+
     if ADJUST_WEIGHT in action:
         weight_adjustment = action.split("=")[1]
         last_weight_lbs = action_planned_weight_human
-        new_weight_lbs = last_weight_lbs + float(weight_adjustment)
-        action_planned_weight_human = new_weight_lbs
+        action_planned_weight_human = last_weight_lbs + float(weight_adjustment)
+
+    #print action_planned_weight_human
 
 
     if LEAVE_GYM not in action and NEXT_EXERCISE not in action:
@@ -2133,7 +2140,6 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         new_weight_lbs = action_planned_weight_human
 
-
         if new_weight_lbs < CONFIG.MINIMUM_WEIGHT:
             new_weight_lbs = CONFIG.MINIMUM_WEIGHT
         if new_weight_lbs > CONFIG.MAXIMUM_WEIGHT:
@@ -2142,7 +2148,9 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         weight_lbs = new_weight_lbs
 
         #print "env "+exercise_name+" "+str(new_weight_lbs)+" "+str(reps_planned)
-        actions_episode_log_human.append("env "+exercise_name+" "+str(new_weight_lbs)+" "+str(reps_planned))
+        action_log_entry = "env "+exercise_name+" "+str(new_weight_lbs)+" "+str(reps_planned)+" action:"+str(action)
+        #print action_log_entry
+        actions_episode_log_human.append(action_log_entry)
 
 
         postset_heartrate = -1
@@ -2246,7 +2254,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h["exercises_left"] = state["exercises_left"]
         state_h["current_exercise"] = state["current_exercise"]
         state_h["current_weight"] = weight_lbs
-        state_h["current_reps"] = state["current_reps"]
+        state_h["current_reps"] = action_planned_reps_human
         # print a_workout_series_h[-1]
 
         # now calculate reward from the last reward index----------------
