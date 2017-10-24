@@ -243,6 +243,72 @@ rl_all_possible_actions.append(NEXT_EXERCISE)
 
 # ---------------------------------------------------------->
 
+def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day_vector_workout_day_index):
+    # build day array
+    # print xx
+    packaged_day = {}
+    packaged_day["heart_rate_variability_rmssd"] = some_json_objects[xx]["day_vector"]["heart_rate_variability_rmssd"]
+    packaged_day["post_day_wearable_calories_burned"] = some_json_objects[xx]["day_vector"][
+        "post_day_wearable_calories_burned"]
+    packaged_day["post_day_calories_in"] = some_json_objects[xx]["day_vector"]["post_day_calories_in"]
+    packaged_day["post_day_protein_g"] = some_json_objects[xx]["day_vector"]["post_day_protein_g"]
+    packaged_day["post_day_carbs_g"] = some_json_objects[xx]["day_vector"]["post_day_carbs_g"]
+    packaged_day["post_day_fat_g"] = some_json_objects[xx]["day_vector"]["post_day_fat_g"]
+    packaged_day["withings_weight_lbs"] = some_json_objects[xx]["day_vector"]["withings_weight_lbs"]
+    packaged_day["withings_body_fat_percent"] = some_json_objects[xx]["day_vector"]["withings_body_fat_percent"]
+    packaged_day["withings_muscle_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_muscle_mass_percent"]
+    packaged_day["withings_body_water_percent"] = some_json_objects[xx]["day_vector"]["withings_body_water_percent"]
+    packaged_day["withings_heart_rate_bpm"] = some_json_objects[xx]["day_vector"]["withings_heart_rate_bpm"]
+    packaged_day["withings_bone_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_bone_mass_percent"]
+    packaged_day["withings_pulse_wave_velocity_m_per_s"] = some_json_objects[xx]["day_vector"][
+        "withings_pulse_wave_velocity_m_per_s"]
+
+    sbtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
+    packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
+
+    srtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_rise_time_ampm"])
+    packaged_day["sleeptime_rise_time_ampm_index"] = srtap
+
+    packaged_day["sleeptime_efficiency_percent"] = some_json_objects[xx]["day_vector"]["sleeptime_efficiency_percent"]
+
+    sarap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
+    packaged_day["sleeptime_alarm_ring_ampm_index"] = sarap
+
+    sasap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
+    packaged_day["sleeptime_alarm_set_ampm_index"] = sasap
+
+    packaged_day["sleeptime_snoozed"] = some_json_objects[xx]["day_vector"]["sleeptime_snoozed"]
+
+    def getNumericalHour(hour_string):
+        result = None
+        if hour_string != -1:
+            hours = hour_string.split(":")[0]
+            minutes = hour_string.split(":")[1]
+            result = float(hours) + (float(minutes) / 60.0)
+        else:
+            result = -1
+        return result
+
+    sahrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_awake_hrs"])
+    packaged_day["sleeptime_awake_hrs"] = sahrs
+
+    slshrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_light_sleep_hrs"])
+    packaged_day["sleeptime_light_sleep_hrs"] = slshrs
+
+    sdrhrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_deep_rem_hrs"])
+    packaged_day["sleeptime_deep_rem_hrs"] = sdrhrs
+
+    if last_day_vector_workout_day_index is not None:
+        current_workout_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+        last_workout_yyyymmdd = some_json_objects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
+        days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
+    else:
+        days_since_last_workout = 0
+    packaged_day["days_since_last_workout"] = days_since_last_workout
+    if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
+        last_day_vector_workout_day_index = xx
+
+    return packaged_day,last_day_vector_workout_day_index
 
 
 def make_raw_units():
@@ -271,71 +337,9 @@ def make_raw_units():
             for xx in range(r[0], r[1] + 1):
 
                 debug_name = some_json_filenames[xx]
-                # build day array
-                # print xx
-                packaged_day = {}
-                packaged_day["heart_rate_variability_rmssd"] = some_json_objects[xx]["day_vector"]["heart_rate_variability_rmssd"]
-                packaged_day["post_day_wearable_calories_burned"] = some_json_objects[xx]["day_vector"][
-                    "post_day_wearable_calories_burned"]
-                packaged_day["post_day_calories_in"] = some_json_objects[xx]["day_vector"]["post_day_calories_in"]
-                packaged_day["post_day_protein_g"] = some_json_objects[xx]["day_vector"]["post_day_protein_g"]
-                packaged_day["post_day_carbs_g"] = some_json_objects[xx]["day_vector"]["post_day_carbs_g"]
-                packaged_day["post_day_fat_g"] = some_json_objects[xx]["day_vector"]["post_day_fat_g"]
-                packaged_day["withings_weight_lbs"] = some_json_objects[xx]["day_vector"]["withings_weight_lbs"]
-                packaged_day["withings_body_fat_percent"] = some_json_objects[xx]["day_vector"]["withings_body_fat_percent"]
-                packaged_day["withings_muscle_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_muscle_mass_percent"]
-                packaged_day["withings_body_water_percent"] = some_json_objects[xx]["day_vector"]["withings_body_water_percent"]
-                packaged_day["withings_heart_rate_bpm"] = some_json_objects[xx]["day_vector"]["withings_heart_rate_bpm"]
-                packaged_day["withings_bone_mass_percent"] = some_json_objects[xx]["day_vector"]["withings_bone_mass_percent"]
-                packaged_day["withings_pulse_wave_velocity_m_per_s"] = some_json_objects[xx]["day_vector"][
-                    "withings_pulse_wave_velocity_m_per_s"]
 
-                sbtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_bed_time_ampm"])
-                packaged_day["sleeptime_bed_time_ampm_index"] = sbtap
-
-                srtap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_rise_time_ampm"])
-                packaged_day["sleeptime_rise_time_ampm_index"] = srtap
-
-                packaged_day["sleeptime_efficiency_percent"] = some_json_objects[xx]["day_vector"]["sleeptime_efficiency_percent"]
-
-                sarap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_ring_ampm"])
-                packaged_day["sleeptime_alarm_ring_ampm_index"] = sarap
-
-                sasap = time_vocabulary.index(some_json_objects[xx]["day_vector"]["sleeptime_alarm_set_ampm"])
-                packaged_day["sleeptime_alarm_set_ampm_index"] = sasap
-
-                packaged_day["sleeptime_snoozed"] = some_json_objects[xx]["day_vector"]["sleeptime_snoozed"]
-
-                def getNumericalHour(hour_string):
-                    result = None
-                    if hour_string != -1:
-                        hours = hour_string.split(":")[0]
-                        minutes = hour_string.split(":")[1]
-                        result = float(hours) + (float(minutes) / 60.0)
-                    else:
-                        result = -1
-                    return result
-
-                sahrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_awake_hrs"])
-                packaged_day["sleeptime_awake_hrs"] = sahrs
-
-                slshrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_light_sleep_hrs"])
-                packaged_day["sleeptime_light_sleep_hrs"] = slshrs
-
-                sdrhrs = getNumericalHour(some_json_objects[xx]["day_vector"]["sleeptime_deep_rem_hrs"])
-                packaged_day["sleeptime_deep_rem_hrs"] = sdrhrs
-
-                days_since_last_workout = None
-                if last_day_vector_workout_day_index is not None:
-                    current_workout_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
-                    last_workout_yyyymmdd = some_json_objects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
-                    days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
-                else:
-                    days_since_last_workout = 0
-                packaged_day["days_since_last_workout"] = days_since_last_workout
-                abc = len(packaged_day)
-                if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
-                    last_day_vector_workout_day_index = xx
+                packaged_day,last_day_vector_workout_day_index = \
+                    convert_raw_json_day_vector_to_packaged_day(xx,some_json_objects,last_day_vector_workout_day_index)
 
                 # ------------------------------------------------------------
 
@@ -2558,7 +2562,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 #generate_training_data()
 #train_stress_adaptation_model()
 #train_rl_agent()
-rl_provide_recommendation_based_on_latest("rezahussain")
+#rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
