@@ -241,11 +241,13 @@ rl_all_possible_actions.append(NEXT_EXERCISE)
 # RL has a hard time learning
 # when there are many choices
 
-# ---------------------------------------------------------->
+#---------------------------------------------------------->
 
 def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day_vector_workout_day_index):
+
     # build day array
     # print xx
+    xx = index
     packaged_day = {}
     packaged_day["heart_rate_variability_rmssd"] = some_json_objects[xx]["day_vector"]["heart_rate_variability_rmssd"]
     packaged_day["post_day_wearable_calories_burned"] = some_json_objects[xx]["day_vector"][
@@ -341,8 +343,6 @@ def make_raw_units():
                 packaged_day,last_day_vector_workout_day_index = \
                     convert_raw_json_day_vector_to_packaged_day(xx,some_json_objects,last_day_vector_workout_day_index)
 
-                # ------------------------------------------------------------
-
                 # if you modify the setup above make sure it is also modded
                 # in the pad unit_days below
                 unit_days.append(packaged_day)
@@ -370,6 +370,27 @@ def make_raw_units():
                         used_lifting_gear = some_json_objects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
                         vmpsa = some_json_objects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
 
+
+                        # lets say you have days_since_last_workout all 1
+                        # it cant know when a new workout started
+                        # it probably thinks of it all as one workout
+                        # so we add the set number of the day
+                        # instead of using time since start of workout
+                        # bc if we use time since start of workout we have to do
+                        # things like estimate how long a user is resting
+
+                        # this whole spiel is a consequence of using a separate
+                        # timeseries vector for days and workouts instead of combining
+                        # them
+                        # we could combine them, but then we have to predict both of the
+                        # missing pieces at the same time and that gets messy
+                        # because of things like doing a set it might try to predict
+                        # the day values
+                        # I think keeping them separate timeseries is the right approach
+                        # at least thats how it appears to me right now
+
+                        set_number_of_the_day = ii
+
                         # ------------------------------------------------------------------------
 
 
@@ -383,7 +404,8 @@ def make_raw_units():
                             did_pull_muscle,
                             used_lifting_gear,
                             unit_days,
-                            vmpsa
+                            vmpsa,
+                            set_number_of_the_day
                         )
                         unit_workouts.append(packaged_workout)
 
@@ -553,6 +575,13 @@ def make_raw_units():
                         userx["height_inches"] = userjson["height_inches"]
                         userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
 
+
+                        packaged_day_after = None
+                        if xx+1 < len(some_json_objects)-1:
+                            packaged_day_after, last_day_vector_workout_day_index = \
+                            convert_raw_json_day_vector_to_packaged_day(xx, some_json_objects,
+                                                                        last_day_vector_workout_day_index)
+
                         # this is what we r gonna package for the NN
                         workoutxseries = unit_workout_clone_padded[:]
                         workouty = copy.deepcopy(copyyy)
@@ -562,13 +591,14 @@ def make_raw_units():
                         wholeTrainUnit = {}
                         wholeTrainUnit["workoutxseries"] = workoutxseries
                         wholeTrainUnit["workouty"] = workouty
+                        wholeTrainUnit["dayy"] = packaged_day_after
                         wholeTrainUnit["dayseriesx"] = dayseries
                         wholeTrainUnit["userx"] = userx
 
                         savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
                         savename = savename + u.user_name
 
-                        if has_valid_y:
+                        if has_valid_y and packaged_day_after is not None:
                             pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + savename, "wb"))
 
 
@@ -614,7 +644,8 @@ def make_workout_step_human(
 
         used_lifting_gear,
         unit_days_arr_human,
-        velocities_m_per_s_arr
+        velocities_m_per_s_arr,
+        set_number_of_the_day
 
 ):
     packaged_workout = {}
@@ -695,6 +726,8 @@ def make_workout_step_human(
 
     for iiii in range(CONFIG.CONFIG_MAX_REPS_PER_SET):
         packaged_workout["velocities_arr_" + str(iiii)] = velarr[iiii]
+
+    packaged_workout["set_number_of_the_day"] = set_number_of_the_day
 
     return packaged_workout
 
@@ -910,60 +943,6 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
 
     return h_workout_timestep
 
-
-def denormalize_workout_series_individual_timestep(n_workout_timestep, days_series_arr_h):
-    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
-
-    dayseriesxmin = norm_vals["dayseriesxmin"]
-    dayseriesxmax = norm_vals["daysseriesxmax"]
-    userxmin = norm_vals["userxmin"]
-    userxmax = norm_vals["userxmax"]
-    workoutxseriesmin = norm_vals["workoutxseriesmin"]
-    workoutxseriesmax = norm_vals["workoutxseriesmax"]
-    workoutymin = norm_vals["workoutymin"]
-    workoutymax = norm_vals["workoutymax"]
-
-    # first make a hollow object
-    exercise_name = -1
-    reps_planned = -1
-    reps_completed = -1
-    weight_lbs = -1
-
-    postset_heartrate = -1
-    went_to_failure = -1
-    did_pull_muscle = -1
-
-    used_lifting_gear = -1
-    unit_days_arr_human = days_series_arr_h
-    velocities_m_per_s_arr = -1
-
-    workoutstep_hollow_h = make_workout_step_human(
-        exercise_name,
-        reps_planned,
-        reps_completed,
-        weight_lbs,
-
-        postset_heartrate,
-        went_to_failure,
-        did_pull_muscle,
-
-        used_lifting_gear,
-        unit_days_arr_human,
-        velocities_m_per_s_arr
-    )
-
-    h_workout_timestep = {}
-    workoutstepkeys = sorted(list(workoutstep_hollow_h.keys()))
-    for ii in range(len(workoutstepkeys)):
-        akey = workoutstepkeys[ii]
-        aval = n_workout_timestep[ii]
-        amin = workoutxseriesmin[ii]
-        amax = workoutxseriesmax[ii]
-        unnormal = (aval * (amax - amin)) + amin
-        h_workout_timestep[akey] = unnormal
-        ABC = None
-
-    return h_workout_timestep
 
 
 def get_unit_names():
@@ -1513,12 +1492,12 @@ def train_stress_adaptation_model():
                 # alw.user_vector_input
             ],
 
-                feed_dict={
-                    alw.world_day_series_input: day_series_batch,
-                    alw.world_workout_series_input: wo_series_batch,
-                    alw.world_user_vector_input: user_x_batch,
-                    alw.world_workout_y: wo_y_batch
-                })
+            feed_dict={
+                alw.world_day_series_input: day_series_batch,
+                alw.world_workout_series_input: wo_series_batch,
+                alw.world_user_vector_input: user_x_batch,
+                alw.world_workout_y: wo_y_batch
+            })
             abc = None
             train_error += float(train_results[4])
             print "trainExtern: " + str(train_error / len(train_names))
@@ -1572,7 +1551,7 @@ def train_stress_adaptation_model():
                 })
             abc = None
             valid_error += float(valid_results[3])
-            # print "trainExtern: " + str(train_error)
+            print "validExtern: " + str(valid_error)
 
         train_error /= float(len(train_names))
         valid_error /= float(len(valid_names))
@@ -1619,12 +1598,7 @@ def train_rl_agent():
     if latest_checkpoint is not None:
         alw.asaver.restore(sess, latest_checkpoint)
 
-    # saver = tf.train.import_meta_graph(CONFIG.CONFIG_SAVE_MODEL_LOCATION+".meta")
-    #alw.asaver.restore(sess, tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION))
 
-    # alw.asaver.restore(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION)
-
-    # this shouldn't affect the stress model I think
     gradBuffer = sess.run(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='rl_agent'))
 
     # starting_point_name = []
@@ -1672,29 +1646,6 @@ def train_rl_agent():
             actions_episode_log_human,reward_log_human = walk_episode_with_sample(a_sample_name,a_episode_length,sess,norm_vals,alw,state,value_episode,reward_episode,
                                      action_index_episode,dayseriesx_episode,userx_episode,workoutxseries_episode,
                                      actions_episode_log_human,reward_log_human)
-            '''
-            return value_episode, \
-                   reward_episode, \
-                   action_index_episode, \
-                   dayseriesx_episode, \
-                   userx_episode, workoutxseries_episode, actions_episode_log_human, reward_log_human
-    
-            def walk_episode_with_sample(a_sample_name,
-                                         a_episode_length,
-                                         sess,
-                                         norm_vals,
-                                         alw,
-                                         state,
-                                         value_episode,
-                                         reward_episode,
-                                         action_index_episode,
-                                         dayseriesx_episode,
-                                         userx_episode,
-                                         workoutxseries_episode,
-                                         actions_episode_log_human,
-                                         reward_log_human):
-            '''
-
 
 
             reward_per_sample.append(np.sum(reward_episode))
@@ -1859,6 +1810,7 @@ def walk_episode_with_sample(a_sample_name,
             state["current_exercise"] = state["exercises_left"][0]
             state["current_weight"] = CONFIG.MINIMUM_WEIGHT
             state["current_reps"] = 6
+            state["set_number_of_the_day"] = 0
 
             state["lastrewarddetectedindexes"] = {}
             for exercise_name in CHOOSABLE_EXERCISES:
@@ -1906,6 +1858,7 @@ def walk_episode_with_sample(a_sample_name,
             h_unit["current_exercise"] = state["current_exercise"]
             h_unit["current_weight"] = state["current_weight"]
             h_unit["current_reps"] = state["current_reps"]
+            h_unit["set_number_of_the_day"] = state["set_number_of_the_day"]
 
             h_unit["rl_actions_started_index"] = state["rl_actions_started_index"] - 1
             if h_unit["rl_actions_started_index"] < 0:
@@ -2098,6 +2051,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h["current_exercise"] = state_h["exercises_left"][0]
         state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
         state_h["current_reps"] = CONFIG.STARTING_REPS
+        state_h["set_number_of_the_day"] = 0
 
         actions_episode_log_human.append("env "+LEAVE_GYM)
         #print "env LEAVEGYM"
@@ -2165,6 +2119,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         unit_days_arr_human = a_day_series_h
         velocities_m_per_s_arr = -1
 
+        set_number_of_the_day = state_h["set_number_of_the_day"]
+
         workoutstep_for_predict_h = make_workout_step_human(
             action_exercise_name_human,
             action_planned_reps_human,
@@ -2177,7 +2133,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
             used_lifting_gear,
             unit_days_arr_human,
-            velocities_m_per_s_arr
+            velocities_m_per_s_arr,
+            set_number_of_the_day
         )
 
         # np array so u cant use append like above
@@ -2259,6 +2216,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h["current_exercise"] = state["current_exercise"]
         state_h["current_weight"] = weight_lbs
         state_h["current_reps"] = action_planned_reps_human
+        state_h["set_number_of_the_day"] = set_number_of_the_day+1
         # print a_workout_series_h[-1]
 
         # now calculate reward from the last reward index----------------
@@ -2562,13 +2520,13 @@ def rl_provide_recommendation_based_on_latest(user_name):
 #generate_training_data()
 #train_stress_adaptation_model()
 #train_rl_agent()
-#rl_provide_recommendation_based_on_latest("rezahussain")
+rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
-GENERATE_DATA_COMMAND = "generatedata"
-TRAIN_STRESS_MODEL_COMMAND = "trainstressmodel"
-TRAIN_RL_AGENT_COMMAND = "trainrlagent"
+GENERATE_DATA_COMMAND = "generate_data"
+TRAIN_STRESS_MODEL_COMMAND = "train_stress_model"
+TRAIN_RL_AGENT_COMMAND = "train_rl_agent"
 RECOMMEND_COMMAND = "recommend"
 
 if len(sys.argv)==1:
