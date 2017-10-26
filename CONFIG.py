@@ -34,7 +34,13 @@ CONFIG_SAVE_MODEL_LOCATION = "./tmp/"
 
 CONFIG_RAW_JSON_PATH = "./workoutdata/"
 
+
+
 #need to make these next three
+
+CONFIG_NN_BODY_MODEL_PICKLES_PATH = "./tmp/nnpickles_body/"
+CONFIG_NN_STRESS_MODEL_PICKLES_PATH = "./tmp/nnpickles_stress/"
+
 CONFIG_NN_HUMAN_PICKLES_PATH = "./tmp/nnpickles_folder/"
 CONFIG_NORMALIZE_VALS_PATH = "./tmp/normvals"
 

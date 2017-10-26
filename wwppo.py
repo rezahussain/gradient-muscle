@@ -243,7 +243,7 @@ rl_all_possible_actions.append(NEXT_EXERCISE)
 
 #---------------------------------------------------------->
 
-def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day_vector_workout_day_index):
+def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day_vector_workout_day_index,unit_days):
 
     # build day array
     # print xx
@@ -310,6 +310,8 @@ def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day
     if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
         last_day_vector_workout_day_index = xx
 
+    packaged_day["day_number"]=len(unit_days)
+
     return packaged_day,last_day_vector_workout_day_index
 
 
@@ -336,12 +338,14 @@ def make_raw_units():
 
             last_day_vector_workout_day_index = None
 
+            body_train_unit = None
+
             for xx in range(r[0], r[1] + 1):
 
                 debug_name = some_json_filenames[xx]
 
                 packaged_day,last_day_vector_workout_day_index = \
-                    convert_raw_json_day_vector_to_packaged_day(xx,some_json_objects,last_day_vector_workout_day_index)
+                    convert_raw_json_day_vector_to_packaged_day(xx,some_json_objects,last_day_vector_workout_day_index,unit_days)
 
                 # if you modify the setup above make sure it is also modded
                 # in the pad unit_days below
@@ -352,6 +356,11 @@ def make_raw_units():
                 # days that are ahead of the current work set
                 # but then still include days that are behind or at the current
                 # work set
+
+                # save the last work set day whole unit
+                # bc its all of the sets for the day that are responsible for
+                # the body state the next day
+
 
 
                 if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
@@ -511,6 +520,7 @@ def make_raw_units():
                         packaged_day_padded["sleeptime_light_sleep_hrs"] = -1
                         packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
                         packaged_day_padded["days_since_last_workout"] = -1
+                        packaged_day_padded["day_number"] = -1
 
                         while len(unit_days_padded) < global_max_day_range_array_len:
                             unit_days_padded.insert(0, packaged_day_padded)
@@ -576,30 +586,36 @@ def make_raw_units():
                         userx["harris_benedict_bmr"] = userjson["harris_benedict_bmr"]
 
 
-                        packaged_day_after = None
-                        if xx+1 < len(some_json_objects)-1:
-                            packaged_day_after, last_day_vector_workout_day_index = \
-                            convert_raw_json_day_vector_to_packaged_day(xx, some_json_objects,
-                                                                        last_day_vector_workout_day_index)
-
                         # this is what we r gonna package for the NN
                         workoutxseries = unit_workout_clone_padded[:]
                         workouty = copy.deepcopy(copyyy)
                         dayseries = unit_days_padded[:]
                         userx = userx
 
-                        wholeTrainUnit = {}
-                        wholeTrainUnit["workoutxseries"] = workoutxseries
-                        wholeTrainUnit["workouty"] = workouty
-                        wholeTrainUnit["dayy"] = packaged_day_after
-                        wholeTrainUnit["dayseriesx"] = dayseries
-                        wholeTrainUnit["userx"] = userx
+                        whole_train_unit = {}
+                        whole_train_unit["workoutxseries"] = workoutxseries
+                        whole_train_unit["workouty"] = workouty
+                        whole_train_unit["dayseriesx"] = dayseries
+                        whole_train_unit["userx"] = userx
 
-                        savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
-                        savename = savename + u.user_name
+                        if has_valid_y:
+                            savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_" + str(ii)
+                            savename = savename + u.user_name
+                            pickle.dump(whole_train_unit, open(CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH + savename, "wb"))
 
-                        if has_valid_y and packaged_day_after is not None:
-                            pickle.dump(wholeTrainUnit, open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + savename, "wb"))
+                        body_train_unit = copy.deepcopy(whole_train_unit)
+
+
+                if xx + 1 < len(some_json_objects) - 1 and body_train_unit is not None:
+                    packaged_day_after, last_day_vector_workout_day_index = \
+                        convert_raw_json_day_vector_to_packaged_day(xx, some_json_objects,
+                                        last_day_vector_workout_day_index, unit_days)
+
+                    body_train_unit["dayy"] = packaged_day_after
+
+                    savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
+                    savename = savename + u.user_name
+                    pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
 
 
 
@@ -677,6 +693,8 @@ def make_workout_step_human(
 
     packaged_workout["days_since_last_workout"] = unit_days_arr_human[-1]["days_since_last_workout"]
 
+    packaged_workout["day_number"] = len(unit_days_arr_human)
+
     # pad reps array to a fixed 20 reps
     # that way you can just include a 20 feature array
     # then let the flow go unmessed with
@@ -742,25 +760,36 @@ def get_norm_values():
 
 
 def write_norm_values():
-    picklefilenames = get_unit_names()
 
-    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilenames[0], "rb"))
+    stress_picklefilenames = get_stress_unit_names()
+    body_picklefilenames = get_body_unit_names()
 
-    dayseriesxmin = [9999.0] * len((unpickled_package["dayseriesx"][0]).keys())
-    dayseriesxmax = [-9999.0] * len((unpickled_package["dayseriesx"][0]).keys())
+    # stress model data and body data are the same
+    # so it doesn't matter which one you derive the norm values from
 
-    userxmin = [9999.0] * len((unpickled_package["userx"]).keys())
-    userxmax = [-9999.0] * len((unpickled_package["userx"]).keys())
+    a_stress_unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH + stress_picklefilenames[0], "rb"))
 
-    workoutxseriesmin = [9999.0] * len((unpickled_package["workoutxseries"][0]).keys())
-    workoutxseriesmax = [-9999.0] * len((unpickled_package["workoutxseries"][0]).keys())
+    dayseriesxmin = [9999.0] * len((a_stress_unpickled_package["dayseriesx"][0]).keys())
+    dayseriesxmax = [-9999.0] * len((a_stress_unpickled_package["dayseriesx"][0]).keys())
 
-    workoutymin = [9999.0] * len((unpickled_package["workouty"]).keys())
-    workoutymax = [-9999.0] * len((unpickled_package["workouty"]).keys())
+    userxmin = [9999.0] * len((a_stress_unpickled_package["userx"]).keys())
+    userxmax = [-9999.0] * len((a_stress_unpickled_package["userx"]).keys())
 
-    for picklefilename in picklefilenames:
+    workoutxseriesmin = [9999.0] * len((a_stress_unpickled_package["workoutxseries"][0]).keys())
+    workoutxseriesmax = [-9999.0] * len((a_stress_unpickled_package["workoutxseries"][0]).keys())
 
-        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + picklefilename, "rb"))
+    workoutymin = [9999.0] * len((a_stress_unpickled_package["workouty"]).keys())
+    workoutymax = [-9999.0] * len((a_stress_unpickled_package["workouty"]).keys())
+
+    a_body_unpickled_package = pickle.load(
+        open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + body_picklefilenames[0], "rb"))
+
+    dayymin = [9999.0] * len((a_body_unpickled_package["dayy"]).keys())
+    dayymax = [-9999.0] * len((a_body_unpickled_package["dayy"]).keys())
+
+    for picklefilename in stress_picklefilenames:
+
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH + picklefilename, "rb"))
 
         unpickledayseriesx = unpickled_package["dayseriesx"]
         for i in range(len(unpickledayseriesx)):
@@ -806,6 +835,19 @@ def write_norm_values():
             if aval > workoutymax[i]:
                 workoutymax[i] = aval
 
+    for picklefilename in body_picklefilenames:
+        unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + picklefilename, "rb"))
+        unpickleddayy = unpickled_package["dayy"]
+        unpickleddayykeys = sorted(list((unpickleddayy.keys())))
+        for i in range(len(unpickleddayykeys)):
+            akey = unpickleddayykeys[i]
+            aval = float(unpickleddayy[akey])
+            if aval < dayymin[i]:
+                dayymin[i] = aval
+            if aval > dayymax[i]:
+                dayymax[i] = aval
+
+
     normVals = {}
     normVals["dayseriesxmin"] = dayseriesxmin
     normVals["daysseriesxmax"] = dayseriesxmax
@@ -815,6 +857,8 @@ def write_norm_values():
     normVals["workoutxseriesmax"] = workoutxseriesmax
     normVals["workoutymin"] = workoutymin
     normVals["workoutymax"] = workoutymax
+    normVals["dayymin"] = dayymin
+    normVals["dayymax"] = dayymax
 
     pickle.dump(normVals, open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "wb"))
 
@@ -945,8 +989,16 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
 
 
 
-def get_unit_names():
-    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
+#def get_unit_names():
+#    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
+#    return picklefilenames
+
+def get_stress_unit_names():
+    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH)
+    return picklefilenames
+
+def get_body_unit_names():
+    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH)
     return picklefilenames
 
 def get_human_unit_for_name(unit_name):
@@ -1414,7 +1466,7 @@ def generate_training_data():
 
 def train_stress_adaptation_model():
 
-    all_names = get_unit_names()
+    all_names = get_stress_unit_names()
     norm_vals = get_norm_values()
     loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
 
@@ -1574,7 +1626,7 @@ def train_stress_adaptation_model():
 
 
 def train_rl_agent():
-    all_names = get_unit_names()
+    all_names = get_stress_unit_names()
     norm_vals = get_norm_values()
 
     loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
@@ -2449,7 +2501,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
 def rl_provide_recommendation_based_on_latest(user_name):
 
-    all_names = get_unit_names()
+    all_names = get_stress_unit_names()
     norm_vals = get_norm_values()
 
     user_sample_names = [k for k in all_names if user_name in k]
@@ -2517,10 +2569,10 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-#generate_training_data()
+generate_training_data()
 #train_stress_adaptation_model()
 #train_rl_agent()
-rl_provide_recommendation_based_on_latest("rezahussain")
+#rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
