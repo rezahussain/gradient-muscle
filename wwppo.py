@@ -873,6 +873,9 @@ def normalize_unit(packaged_unit, norm_vals):
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
 
+    dayymin = norm_vals["dayymin"]
+    dayymax = norm_vals["dayymax"]
+
     n_packaged_unit = {}
 
     unpickledayseriesx = packaged_unit["dayseriesx"]
@@ -934,22 +937,44 @@ def normalize_unit(packaged_unit, norm_vals):
         n_unpickleduserx.append(aval)
     n_packaged_unit["userx"] = n_unpickleduserx
 
-    unpickledworkouty = packaged_unit["workouty"]
-    n_unpickledworkouty = []
-    unpickledworkoutykeys = sorted(list(unpickledworkouty.keys()))
-    for i in range(len(unpickledworkoutykeys)):
-        akey = unpickledworkoutykeys[i]
-        aval = unpickledworkouty[akey]
-        if aval > workoutymax[i]:
-            aval = workoutymax[i]
-        if aval < workoutymin[i]:
-            aval = workoutymin[i]
-        if (workoutymax[i] - workoutymin[i]) > 0:
-            aval = (aval - workoutymin[i]) / (workoutymax[i] - workoutymin[i])
-        else:
-            aval = 0
-        n_unpickledworkouty.append(aval)
-    n_packaged_unit["workouty"] = n_unpickledworkouty
+
+    if "workouty" in packaged_unit.keys():
+        unpickledworkouty = packaged_unit["workouty"]
+        n_unpickledworkouty = []
+        unpickledworkoutykeys = sorted(list(unpickledworkouty.keys()))
+        for i in range(len(unpickledworkoutykeys)):
+            akey = unpickledworkoutykeys[i]
+            aval = unpickledworkouty[akey]
+            if aval > workoutymax[i]:
+                aval = workoutymax[i]
+            if aval < workoutymin[i]:
+                aval = workoutymin[i]
+            if (workoutymax[i] - workoutymin[i]) > 0:
+                aval = (aval - workoutymin[i]) / (workoutymax[i] - workoutymin[i])
+            else:
+                aval = 0
+            n_unpickledworkouty.append(aval)
+        n_packaged_unit["workouty"] = n_unpickledworkouty
+
+    if "dayy" in packaged_unit.keys():
+        unpickleddayy = packaged_unit["dayy"]
+        n_unpickleddayy = []
+        unpickleddayykeys = sorted(list(unpickleddayy.keys()))
+        for i in range(len(unpickleddayykeys)):
+            akey = unpickleddayykeys[i]
+            aval = unpickleddayy[akey]
+            if aval > dayymax[i]:
+                aval = dayymax[i]
+            if aval < dayymin[i]:
+                aval = dayymin[i]
+            if (dayymax[i]-dayymin[i]) > 0:
+                aval = (aval - dayymin[i])/(dayymax[i]-dayymin[i])
+            else:
+                aval = 0
+            n_unpickleddayy.append(aval)
+        n_packaged_unit["dayy"] = n_unpickleddayy
+
+
 
     return n_packaged_unit
 
