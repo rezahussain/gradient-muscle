@@ -41,7 +41,6 @@ CONFIG_RAW_JSON_PATH = "./workoutdata/"
 CONFIG_NN_BODY_MODEL_PICKLES_PATH = "./tmp/nnpickles_body/"
 CONFIG_NN_STRESS_MODEL_PICKLES_PATH = "./tmp/nnpickles_stress/"
 
-CONFIG_NN_HUMAN_PICKLES_PATH = "./tmp/nnpickles_folder/"
 CONFIG_NORMALIZE_VALS_PATH = "./tmp/normvals"
 
 CONFIG_WORKOUT_LOOKBACK = 2

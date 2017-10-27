@@ -864,6 +864,7 @@ def write_norm_values():
 
 
 def normalize_unit(packaged_unit, norm_vals):
+
     dayseriesxmin = norm_vals["dayseriesxmin"]
     dayseriesxmax = norm_vals["daysseriesxmax"]
     userxmin = norm_vals["userxmin"]
@@ -872,7 +873,6 @@ def normalize_unit(packaged_unit, norm_vals):
     workoutxseriesmax = norm_vals["workoutxseriesmax"]
     workoutymin = norm_vals["workoutymin"]
     workoutymax = norm_vals["workoutymax"]
-
     dayymin = norm_vals["dayymin"]
     dayymax = norm_vals["dayymax"]
 
@@ -1014,10 +1014,6 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
 
 
 
-#def get_unit_names():
-#    picklefilenames = get_dir_names(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH)
-#    return picklefilenames
-
 def get_stress_unit_names():
     picklefilenames = get_dir_names(CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH)
     return picklefilenames
@@ -1026,12 +1022,12 @@ def get_body_unit_names():
     picklefilenames = get_dir_names(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH)
     return picklefilenames
 
-def get_human_unit_for_name(unit_name):
-    unpickled_package = pickle.load(open(CONFIG.CONFIG_NN_HUMAN_PICKLES_PATH + unit_name, "rb"))
+def get_human_unit_for_name(unit_name,path):
+    unpickled_package = pickle.load(open(path + unit_name, "rb"))
     return unpickled_package
 
-def get_machine_unit_for_name(unit_name, norm_vals):
-    human_unit = get_human_unit_for_name(unit_name)
+def get_machine_unit_for_name(unit_name,norm_vals,path):
+    human_unit = get_human_unit_for_name(unit_name,path)
     machine_unit = normalize_unit(human_unit, norm_vals)
     return machine_unit
 
@@ -1042,7 +1038,115 @@ def convert_human_unit_to_machine(h_unit, norm_vals):
 
 
 class Lift_NN():
-    def __init__(self, a_dayseriesx, a_userx, a_workoutxseries, a_workouty, CHOSEN_BATCH_SIZE):
+    def __init__(self, CHOSEN_BATCH_SIZE):
+
+        all_names = get_stress_unit_names()
+        norm_vals = get_norm_values()
+        loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals, CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH)
+
+        a_dayseriesx = loaded_unit["dayseriesx"]
+        a_userx = loaded_unit["userx"]
+        a_workoutxseries = loaded_unit["workoutxseries"]
+        a_workouty = loaded_unit["workouty"]
+
+        all_body_names = get_body_unit_names()
+        body_loaded_unit = get_machine_unit_for_name(all_body_names[0], norm_vals,
+                                                     CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH)
+        a_dayy = body_loaded_unit["dayy"]
+
+
+        with tf.variable_scope('body_model'):
+            self.BODY_NUM_Y_OUTPUT = len(a_dayy)
+
+            self.body_day_series_input = tf.placeholder(tf.float32, (None, None, len(a_dayseriesx[0])),
+                                                         name="body_day_series_input")
+            self.body_workout_series_input = tf.placeholder(tf.float32, (None, None, len(a_workoutxseries[0])),
+                                                             name="body_workout_series_input")
+
+            self.body_user_vector_input = tf.placeholder(tf.float32, (None, len(a_userx)),
+                                                          name="body_user_vector_input")
+            self.body_dayy = tf.placeholder(tf.float32, (None, len(a_dayy)), name="body_dayy")
+
+            with tf.variable_scope('body_workout_series_stageA'):
+                body_wo_cellA = tf.contrib.rnn.LSTMCell(100)
+                body_wo_rnn_outputsA, body_wo_rnn_stateA = tf.nn.dynamic_rnn(body_wo_cellA,
+                                                                               self.body_workout_series_input,
+                                                                               dtype=tf.float32)
+                body_wo_batchA = tf.layers.batch_normalization(body_wo_rnn_outputsA)
+
+            with tf.variable_scope('body_workout_series_stageB'):
+                body_wo_cellB = tf.contrib.rnn.LSTMCell(100)
+                body_wo_resB = tf.contrib.rnn.ResidualWrapper(body_wo_cellB)
+                body_wo_rnn_outputsB, body_wo_rnn_stateB = tf.nn.dynamic_rnn(body_wo_resB, body_wo_rnn_outputsA,
+                                                                               dtype=tf.float32)
+                body_wo_batchB = tf.layers.batch_normalization(body_wo_rnn_outputsB)
+
+            with tf.variable_scope('body_workout_series_stageC'):
+                body_wo_cellC = tf.contrib.rnn.LSTMCell(100)
+                body_wo_resC = tf.contrib.rnn.ResidualWrapper(body_wo_cellC)
+                body_wo_rnn_outputsC, world_wo_rnn_stateB = tf.nn.dynamic_rnn(body_wo_resC, body_wo_rnn_outputsB,
+                                                                               dtype=tf.float32)
+                body_wo_batchC = tf.layers.batch_normalization(body_wo_rnn_outputsC)
+
+
+            with tf.variable_scope('body_day_series_stageA'):
+                body_day_cellA = tf.contrib.rnn.LSTMCell(100)
+                body_day_rnn_outputsA, body_day_rnn_stateA = tf.nn.dynamic_rnn(body_day_cellA,
+                                                                                 self.body_day_series_input,
+                                                                                 dtype=tf.float32)
+                body_day_batchA = tf.layers.batch_normalization(body_day_rnn_outputsA)
+
+            with tf.variable_scope('body_day_series_stageB'):
+                body_day_cellB = tf.contrib.rnn.LSTMCell(100)
+                body_day_resB = tf.contrib.rnn.ResidualWrapper(body_day_cellB)
+                body_day_rnn_outputsB, world_day_rnn_stateB = tf.nn.dynamic_rnn(body_day_resB, body_day_rnn_outputsA,
+                                                                                 dtype=tf.float32)
+                body_day_batchB = tf.layers.batch_normalization(body_day_rnn_outputsB)
+
+            with tf.variable_scope('body_day_series_stageC'):
+                body_day_cellC = tf.contrib.rnn.LSTMCell(100)
+                body_day_resC = tf.contrib.rnn.ResidualWrapper(body_day_cellC)
+                body_day_rnn_outputsC, body_day_rnn_stateC = tf.nn.dynamic_rnn(body_day_resC, body_day_rnn_outputsB,
+                                                                                 dtype=tf.float32)
+                body_day_batchC = tf.layers.batch_normalization(body_day_rnn_outputsC)
+
+
+            body_lastA = body_wo_rnn_outputsC[:, -1:]  # get last lstm output
+            body_lastAA = body_day_rnn_outputsC[:, -1:]  # get last lstm output
+
+            # world_lastA = world_wo_batchB[:, -1:]  # get last lstm output
+            # world_lastAA = world_day_batchB[:, -1:]  # get last lstm output
+
+
+            # world_lastA = world_wo_rnn_outputsA[:, -1:]  # get last lstm output
+            # world_lastAA = world_day_rnn_outputsAA[:, -1:]  # get last lstm output
+
+            self.body_lastA = body_lastA
+            self.body_lastAA = body_lastAA
+
+            # takes those two 250 and concats them to a 500
+            self.body_combined = tf.concat([body_lastA, body_lastAA], 2)
+            self.body_b4shape = tf.shape(self.body_combined)
+
+            # so at setup time you need to know the shape
+            # otherwise it is none
+            # and the dense layer cannot be setup with a none dimension
+            self.body_combined_shaped = tf.reshape(self.body_combined, (CHOSEN_BATCH_SIZE, 100 + 100))
+            self.body_afshape = tf.shape(self.body_combined_shaped)
+            # tf.set_shape()
+
+            self.body_combined2 = tf.concat([self.body_combined_shaped, self.body_user_vector_input], 1)
+            body_dd = tf.layers.dense(self.body_combined2, self.BODY_NUM_Y_OUTPUT)
+
+            self.body_y = body_dd
+
+            self.body_e = tf.losses.mean_squared_error(self.body_dayy, self.body_y)
+            self.body_operation = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(self.body_e)
+
+
+
+
+
         # --------------------------------------------------------------------------------------------------------------
         with tf.variable_scope('stress_model'):
             self.WORLD_NUM_Y_OUTPUT = len(a_workouty)
@@ -1099,36 +1203,6 @@ class Lift_NN():
                                                                                  dtype=tf.float32)
                 world_day_batchC = tf.layers.batch_normalization(world_day_rnn_outputsC)
 
-
-
-            '''
-            with tf.variable_scope('workout_input'):
-                world_cellA = tf.contrib.rnn.NASCell(50)
-                world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
-
-            with tf.variable_scope('day_input'):
-                world_cellAA = tf.contrib.rnn.NASCell(50)
-                world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA,  self.world_day_series_input, dtype=tf.float32)
-
-            '''
-
-            '''
-            with tf.variable_scope('world_workout_series_stageA'):
-                world_cellA = tf.contrib.rnn.LSTMCell(1000)
-                world_rnn_outputsA, world_rnn_stateA = tf.nn.dynamic_rnn(world_cellA, self.world_workout_series_input, dtype=tf.float32)
-
-            with tf.variable_scope('world_workout_series_stageB'):
-                world_cellB = tf.contrib.rnn.LSTMCell(1000)
-                world_rnn_outputsB, world_rnn_stateB = tf.nn.dynamic_rnn(world_cellB, world_rnn_outputsA, dtype=tf.float32)
-
-            with tf.variable_scope('world_day_series_stageA'):
-                world_cellAA = tf.contrib.rnn.LSTMCell(1000)
-                world_rnn_outputsAA, world_rnn_stateAA = tf.nn.dynamic_rnn(world_cellAA, self.world_day_series_input, dtype=tf.float32)
-
-            with tf.variable_scope('world_day_series_stageB'):
-                world_cellBB = tf.contrib.rnn.LSTMCell(1000)
-                world_rnn_outputsBB, world_rnn_stateBB = tf.nn.dynamic_rnn(world_cellBB, world_rnn_outputsAA, dtype=tf.float32)
-            '''
 
             world_lastA = world_wo_rnn_outputsC[:, -1:]  # get last lstm output
             world_lastAA = world_day_rnn_outputsC[:, -1:]  # get last lstm output
@@ -1442,13 +1516,13 @@ class Lift_NN():
         self.asaver = tf.train.Saver()
 
 
-def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
+def build_batch_from_names(batch_unit_names, batch_size,path, for_human=None):
     assert for_human is not None, "forgot to specify for_human flag build_batch_from_names"
 
     day_series_batch = []
     user_x_batch = []
     workout_series_batch = []
-    workout_y_batch = []
+    y_batch = []
 
     norm_vals = get_norm_values()
     i = 0
@@ -1458,49 +1532,206 @@ def build_batch_from_names(batch_unit_names, batch_size, for_human=None):
 
         loaded_unit = None
         if for_human:
-            loaded_unit = get_human_unit_for_name(a_name)
+            loaded_unit = get_human_unit_for_name(a_name, path)
         else:
-            loaded_unit = get_machine_unit_for_name(a_name, norm_vals)
+            loaded_unit = get_machine_unit_for_name(a_name, norm_vals, path)
 
         a_day_series = loaded_unit["dayseriesx"]
         a_user_x = loaded_unit["userx"]
         a_workout_series = loaded_unit["workoutxseries"]
-        a_workout_y = loaded_unit["workouty"]
+        a_y = None
+
+        if "workouty" in loaded_unit.keys():
+            a_y = loaded_unit["workouty"]
+        if "dayy" in loaded_unit.keys():
+            a_y = loaded_unit["dayy"]
 
         day_series_batch.append(a_day_series)
         user_x_batch.append(a_user_x)
         workout_series_batch.append(a_workout_series)
-        workout_y_batch.append(a_workout_y)
+        y_batch.append(a_y)
 
     day_series_batch = np.array(day_series_batch)
     user_x_batch = np.array(user_x_batch)
     workout_series_batch = np.array(workout_series_batch)
-    workout_y_batch = np.array(workout_y_batch)
+    y_batch = np.array(y_batch)
 
     # print workout_y_batch.shape
     # print workout_series_batch.shape
     # print user_x_batch.shape
     # print day_series_batch.shape
 
-    return workout_y_batch, workout_series_batch, user_x_batch, day_series_batch
+    return y_batch, workout_series_batch, user_x_batch, day_series_batch
 
 
 def generate_training_data():
     make_raw_units()
     write_norm_values()
 
+
+def train_body_model():
+
+    all_names = get_body_unit_names()
+
+    alw = Lift_NN(CONFIG.CONFIG_BATCH_SIZE)
+    init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+    sess = tf.Session()
+    sess.run(init_op)
+
+    latest_checkpoint = tf.train.latest_checkpoint(CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+    if latest_checkpoint is not None:
+        alw.asaver.restore(sess, latest_checkpoint)
+
+    split_index = int(math.floor(float(len(all_names)) * 0.8))
+
+    shuffle(all_names)
+    train_names = all_names[:split_index]
+    valid_names = all_names[split_index:]
+
+    best_error = 9999
+
+    for _ in range(0, CONFIG.CONFIG_NUM_EPOCHS):
+
+        train_names_copy = train_names[:]
+        shuffle(train_names_copy)
+
+        valid_names_copy = valid_names[:]
+
+        train_error = 0.0
+        valid_error = 0.0
+
+        while len(train_names_copy) > CONFIG.CONFIG_BATCH_SIZE:
+
+            batch_unit_train_names = train_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+
+            for ii in range(CONFIG.CONFIG_BATCH_SIZE):
+                train_names_copy.pop(0)
+
+            # day_series_batch = []
+            # user_x_batch = []
+            # workout_series_batch = []
+            # workout_y_batch = []
+
+            dayy_batch, wo_series_batch, user_x_batch, day_series_batch \
+                = build_batch_from_names(batch_unit_train_names, CONFIG.CONFIG_BATCH_SIZE,
+                                         CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH ,for_human=False)
+
+            # print "before"
+            # print wo_y_batch.shape
+            # print wo_series_batch.shape
+            # print user_x_batch.shape
+            # print day_series_batch.shape
+
+            ABC = None
+
+            train_results = sess.run([
+                alw.body_day_series_input,
+                alw.body_workout_series_input,
+                alw.body_y,
+                alw.body_operation,
+                alw.body_e,
+                alw.body_dayy,
+                alw.body_combined,
+                alw.body_combined_shaped,
+                alw.body_b4shape,
+                alw.body_lastA,
+                alw.body_lastAA
+
+                # alw.combined2,
+                # alw.workout_y,
+                # alw.afshape,
+                # alw.user_vector_input
+            ],
+
+            feed_dict={
+                alw.body_day_series_input: day_series_batch,
+                alw.body_workout_series_input: wo_series_batch,
+                alw.body_user_vector_input: user_x_batch,
+                alw.body_dayy: dayy_batch
+            })
+            abc = None
+            train_error += float(train_results[4])
+            print "train_extern: " + str(train_error / len(train_names))
+
+        while len(valid_names_copy) > CONFIG.CONFIG_BATCH_SIZE:
+
+            batch_unit_valid_names = valid_names_copy[:CONFIG.CONFIG_BATCH_SIZE]
+
+            for ii in range(CONFIG.CONFIG_BATCH_SIZE):
+                valid_names_copy.pop(0)
+
+            day_series_batch = []
+            user_x_batch = []
+            workout_series_batch = []
+            workout_y_batch = []
+
+            dayy_batch, wo_series_batch, user_x_batch, day_series_batch \
+                = build_batch_from_names(batch_unit_valid_names, CONFIG.CONFIG_BATCH_SIZE,
+                                         CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH, for_human=False)
+
+            # print workout_y_batch.shape
+            # print workout_series_batch.shape
+            # print user_x_batch.shape
+            # print day_series_batch.shape
+
+            ABC = None
+
+            valid_results = sess.run([
+                alw.body_day_series_input,
+                alw.body_workout_series_input,
+                alw.body_y,
+                # alw.world_operation,
+                alw.body_e,
+                alw.body_dayy,
+                alw.body_combined,
+                alw.body_combined_shaped,
+                alw.body_b4shape,
+                alw.body_lastA,
+                alw.body_lastAA
+
+                # alw.combined2,
+                # alw.workout_y,
+                # alw.afshape,
+                # alw.user_vector_input
+            ],
+
+                feed_dict={
+                    alw.body_day_series_input: day_series_batch,
+                    alw.body_workout_series_input: wo_series_batch,
+                    alw.body_user_vector_input: user_x_batch,
+                    alw.body_dayy: dayy_batch
+                })
+            abc = None
+            valid_error += float(valid_results[3])
+            print "valid_extern: " + str(valid_error)
+
+        train_error /= float(len(train_names))
+        valid_error /= float(len(valid_names))
+        print "train_err: " + str(train_error) + " " + "valid_err: " + str(valid_error) + "best_err: " + str(best_error)
+
+        # have to use this until you have enough samples
+        # cuz atm 54 samples is not enough to generalize
+        # and you need low low error
+
+        if train_error < best_error:
+            best_error = train_error
+            print "model saved"
+            alw.asaver.save(sess, CONFIG.CONFIG_SAVE_MODEL_LOCATION+CONFIG.CONFIG_MODEL_NAME)
+
+            # if train_error > valid_error:
+            #    print "model saved"
+            #    alw.asaver.save(sess,CONFIG.CONFIG_SAVE_MODEL_LOCATION)
+
+    sess.close()
+
+
+
 def train_stress_adaptation_model():
 
     all_names = get_stress_unit_names()
     norm_vals = get_norm_values()
-    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
 
-    some_day_series = loaded_unit["dayseriesx"]
-    some_user_x = loaded_unit["userx"]
-    some_workout_series = loaded_unit["workoutxseries"]
-    some_workout_y = loaded_unit["workouty"]
-    abc = None
-    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, CONFIG.CONFIG_BATCH_SIZE)
+    alw = Lift_NN(CONFIG.CONFIG_BATCH_SIZE)
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
     sess.run(init_op)
@@ -1540,7 +1771,8 @@ def train_stress_adaptation_model():
             # workout_y_batch = []
 
             wo_y_batch, wo_series_batch, user_x_batch, day_series_batch \
-                = build_batch_from_names(batch_unit_train_names, CONFIG.CONFIG_BATCH_SIZE, for_human=False)
+                = build_batch_from_names(batch_unit_train_names, CONFIG.CONFIG_BATCH_SIZE,
+                                         CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH,for_human=False)
 
             # print "before"
             # print wo_y_batch.shape
@@ -1592,7 +1824,8 @@ def train_stress_adaptation_model():
             workout_y_batch = []
 
             wo_y_batch, wo_series_batch, user_x_batch, day_series_batch \
-                = build_batch_from_names(batch_unit_valid_names, CONFIG.CONFIG_BATCH_SIZE, for_human=False)
+                = build_batch_from_names(batch_unit_valid_names, CONFIG.CONFIG_BATCH_SIZE,
+                                         CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH,for_human=False)
 
             # print workout_y_batch.shape
             # print workout_series_batch.shape
@@ -1654,14 +1887,8 @@ def train_rl_agent():
     all_names = get_stress_unit_names()
     norm_vals = get_norm_values()
 
-    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
-    some_day_series = loaded_unit["dayseriesx"]
-    some_user_x = loaded_unit["userx"]
-    some_workout_series = loaded_unit["workoutxseries"]
-    some_workout_y = loaded_unit["workouty"]
-
     RL_BATCH_SIZE = 1
-    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
+    alw = Lift_NN(RL_BATCH_SIZE)
 
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
@@ -1854,7 +2081,7 @@ def walk_episode_with_sample(a_sample_name,
         if len(state.keys()) == 0:
 
             wo_y_batch_h, wo_xseries_batch_h, user_x_batch_h, day_series_batch_h = build_batch_from_names(
-                a_sample_name_batch, 1, for_human=True)
+                a_sample_name_batch, 1,CONFIG.CONFIG_NN_STRESS_MODEL_PICKLES_PATH, for_human=True)
 
             # print wo_y_batch_h.shape
             # print wo_xseries_batch_h.shape
@@ -2533,14 +2760,8 @@ def rl_provide_recommendation_based_on_latest(user_name):
     all_names = user_sample_names
     all_names = sorted(all_names)
 
-    loaded_unit = get_machine_unit_for_name(all_names[0], norm_vals)
-    some_day_series = loaded_unit["dayseriesx"]
-    some_user_x = loaded_unit["userx"]
-    some_workout_series = loaded_unit["workoutxseries"]
-    some_workout_y = loaded_unit["workouty"]
-
     RL_BATCH_SIZE = 1
-    alw = Lift_NN(some_day_series, some_user_x, some_workout_series, some_workout_y, RL_BATCH_SIZE)
+    alw = Lift_NN(RL_BATCH_SIZE)
 
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
     sess = tf.Session()
@@ -2595,6 +2816,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 generate_training_data()
+train_body_model()
 #train_stress_adaptation_model()
 #train_rl_agent()
 #rl_provide_recommendation_based_on_latest("rezahussain")
