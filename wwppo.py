@@ -611,7 +611,15 @@ def make_raw_units():
                         convert_raw_json_day_vector_to_packaged_day(xx, some_json_objects,
                                         last_day_vector_workout_day_index, unit_days)
 
-                    body_train_unit["dayy"] = packaged_day_after
+                    packaged_dayy = {}
+                    packaged_dayy["withings_weight_lbs"] = packaged_day_after["withings_weight_lbs"]
+                    packaged_dayy["withings_muscle_mass_percent"] = packaged_day_after["withings_muscle_mass_percent"]
+                    packaged_dayy["withings_body_water_percent"] = packaged_day_after["withings_body_water_percent"]
+                    packaged_dayy["withings_heart_rate_bpm"] = packaged_day_after["withings_heart_rate_bpm"]
+                    packaged_dayy["withings_bone_mass_percent"] = packaged_day_after["withings_bone_mass_percent"]
+                    packaged_dayy["withings_pulse_wave_velocity_m_per_s"] = packaged_day_after["withings_pulse_wave_velocity_m_per_s"]
+
+                    body_train_unit["dayy"] = packaged_dayy
 
                     savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
                     savename = savename + u.user_name
@@ -980,6 +988,7 @@ def normalize_unit(packaged_unit, norm_vals):
 
 
 def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h):
+
     norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
 
     dayseriesxmin = norm_vals["dayseriesxmin"]
@@ -1012,6 +1021,37 @@ def make_h_workout_with_xh_ym(workoutstep_xh, workoutstep_ym, days_series_arr_h)
 
     return h_workout_timestep
 
+def make_h_day_with_xh_ym(last_day_xh,day_ym):
+
+    norm_vals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+
+    dayseriesxmin = norm_vals["dayseriesxmin"]
+    dayseriesxmax = norm_vals["daysseriesxmax"]
+    userxmin = norm_vals["userxmin"]
+    userxmax = norm_vals["userxmax"]
+    workoutxseriesmin = norm_vals["workoutxseriesmin"]
+    workoutxseriesmax = norm_vals["workoutxseriesmax"]
+    workoutymin = norm_vals["workoutymin"]
+    workoutymax = norm_vals["workoutymax"]
+    dayymin = norm_vals["dayymin"]
+    dayymax = norm_vals["dayymax"]
+
+    new_h_day = copy.deepcopy(last_day_xh)
+
+    ykeys =["withings_weight_lbs","withings_muscle_mass_percent","withings_body_water_percent","withings_heart_rate_bpm"
+            ,"withings_bone_mass_percent","withings_pulse_wave_velocity_m_per_s"]
+
+    ykeys = sorted(list(ykeys))
+
+    for ii in range(len(ykeys)):
+        key = ykeys[ii]
+        aval = day_ym[ii]
+        amin = dayymin[ii]
+        amax = dayymax[ii]
+        unnormal = (aval * (amax- amin)) + amin
+        new_h_day[key] = unnormal
+
+    return new_h_day
 
 
 def get_stress_unit_names():
@@ -2147,10 +2187,6 @@ def walk_episode_with_sample(a_sample_name,
 
                 state["lastrewarddetectedindexes"][exercise_name] = last_seen_index
 
-            # need this one bc we want the rl to move from exercise to exercise
-            # so we implement a  penalty for when it keeps switching between exercises
-            # but for that we need to know when it started picking actions to take
-            state["rl_actions_started_index"] = len(h_unit["workoutxseries"]) - 1
 
         else:
             h_unit["dayseriesx"] = state["dayseriesx"]
@@ -2164,9 +2200,6 @@ def walk_episode_with_sample(a_sample_name,
             h_unit["current_reps"] = state["current_reps"]
             h_unit["set_number_of_the_day"] = state["set_number_of_the_day"]
 
-            h_unit["rl_actions_started_index"] = state["rl_actions_started_index"] - 1
-            if h_unit["rl_actions_started_index"] < 0:
-                h_unit["rl_actions_started_index"] = 0
 
         m_unit = convert_human_unit_to_machine(h_unit, norm_vals)
 
@@ -2292,7 +2325,53 @@ def walk_episode_with_sample(a_sample_name,
 
 
 
-# exercise=squat:reps=6:weight=620
+def body_model_predict_new_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess):
+
+    state_h = {}
+    state_h['dayseriesx'] = a_day_series_h
+    state_h['userx'] = a_user_x_h
+    state_h['workoutxseries'] = a_workout_series_h
+    state_h['workouty'] = {}
+
+    norm_vals = get_norm_values()
+    state_m = convert_human_unit_to_machine(state_h, norm_vals)
+
+    day_series_batch = [state_m["dayseriesx"]]
+    user_x_batch = [state_m["userx"]]
+    workout_series_batch = [state_m["workoutxseries"]]
+
+    day_series_batch = np.array(day_series_batch)
+    user_x_batch = np.array(user_x_batch)
+    workout_series_batch = np.array(workout_series_batch)
+
+    # ---------------------------------------------------------
+    # put through graph
+    alw = ai_graph
+
+    # print workout_y_batch.shape
+    # print workout_series_batch.shape
+    # print user_x_batch.shape
+    # print day_series_batch.shape
+
+    results_of_action = sess.run([
+        alw.body_day_series_input,
+        alw.body_workout_series_input,
+        alw.body_y
+    ],
+
+        feed_dict={
+            alw.body_day_series_input: day_series_batch,
+            alw.body_workout_series_input: workout_series_batch,
+            alw.body_user_vector_input: user_x_batch
+        })
+
+    m_predicted_day_vals = results_of_action[2][0]
+    last_day = a_day_series_h[-1]
+
+    new_h_day = make_h_day_with_xh_ym(last_day,m_predicted_day_vals)
+
+    return new_h_day
+
 
 def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_human,reward_log_human):
 
@@ -2335,23 +2414,23 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
     if LEAVE_GYM in action:
 
+        new_day = body_model_predict_new_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess)
+
         # can just take the last day and add it again
 
-        a_day_series_h = np.append(a_day_series_h, copy.deepcopy(a_day_series_h[-1]))
+        a_day_series_h = np.append(a_day_series_h, copy.deepcopy(new_day))
         a_day_series_h = np.delete(a_day_series_h, 0)
-
-        # a_day_series_h.append(a_day_series_h[-1][:])
+        #^^remove first item to keep the array size the same
 
         state_h['dayseriesx'] = a_day_series_h
         state_h['userx'] = state['userx']
         state_h['workoutxseries'] = state['workoutxseries']
-        state_h["rl_actions_started_index"] = len(state['workoutxseries'])-1
 
         #need this cuz we want the rl to learn across workouts
         #and doing next exercise depletes this so you cannot
         #do LEAVEGYM and keep going unless you replenish
-
         state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
+
         state_h["current_exercise"] = state_h["exercises_left"][0]
         state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
         state_h["current_reps"] = CONFIG.STARTING_REPS
@@ -2359,7 +2438,6 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         actions_episode_log_human.append("env "+LEAVE_GYM)
         #print "env LEAVEGYM"
-
 
 
     action_exercise_name_human = state_h["current_exercise"]
@@ -2515,7 +2593,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         state_h['workoutxseries'] = a_workout_series_h
         state_h['workouty'] = {}
         state_h["lastrewarddetectedindexes"] = state["lastrewarddetectedindexes"]
-        state_h["rl_actions_started_index"] = state["rl_actions_started_index"]
+
         state_h["exercises_left"] = state["exercises_left"]
         state_h["current_exercise"] = state["current_exercise"]
         state_h["current_weight"] = weight_lbs
@@ -2815,10 +2893,10 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-generate_training_data()
-train_body_model()
+#generate_training_data()
+#train_body_model()
 #train_stress_adaptation_model()
-#train_rl_agent()
+train_rl_agent()
 #rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
