@@ -2310,7 +2310,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.80  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
@@ -2743,8 +2743,13 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             if len(start_workout_velocities) == 0:
                 no_reward_just_set_last_reward_detected_index = True
             else:
-                start_workout_average_velocity = np.amax(start_workout_velocities)
-                start_workout_force = float(start_workout_average_velocity) * float(start_workout_weight_lbs)
+                start_workout_max_velocity = None
+                if int(math.floor(start_workout_reps_completed)) > 0:
+                    start_workout_max_velocity = np.amax(start_workout_velocities)
+                else:
+                    start_workout_max_velocity = 0
+
+                start_workout_force = float(start_workout_max_velocity) * float(start_workout_weight_lbs)
 
             latest_workout_step = state_h["workoutxseries"][-1]
             latest_workout_reps_completed = math.floor(latest_workout_step["reps_completed"])
@@ -2753,8 +2758,15 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             for iiii in range(int(math.floor(latest_workout_reps_completed))):
                 a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
                 latest_workout_velocities.append(a_velocity)
-            latest_workout_average_velocity = np.amax(latest_workout_velocities)
-            latest_workout_force = latest_workout_average_velocity * latest_workout_weight_lbs
+
+            latest_workout_max_velocity = None
+            if int(math.floor(latest_workout_reps_completed)) > 0:
+                latest_workout_max_velocity = np.amax(latest_workout_velocities)
+            else:
+                latest_workout_max_velocity = 0
+
+
+            latest_workout_force = latest_workout_max_velocity * latest_workout_weight_lbs
 
             # force here units are in lbs per meters/second oh boy
             # should convert fully to metric but don't really need to
@@ -2765,14 +2777,35 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         if no_reward_just_set_last_reward_detected_index:
             state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
         else:
-            new_reward = latest_workout_force - start_workout_force
+
+            # switching to percentage change for rewards
+            # its like normalizing kind results_of_action
+            # it makes it easier to make it prioritize diff rewards
+            # like gain in muscle mass, loss in body fat, increase in force
+            # percentage change kind of normalizes the changes
+
+            # start workout force can be zero when there are zero reps completed
+            percent_change = None
+            if start_workout_force > 0:
+                # looks like you have to have 1% as 1.00 not 0.01
+                # i think maybe because discounted returns makes it underflow and disappear otherwise?
+                percent_change = (latest_workout_force/start_workout_force)*100
+                percent_change = percent_change - 1.0
+
+            else:
+                percent_change = 0
+
+            #old way
+            #new_reward = latest_workout_force - start_workout_force
+
+            new_reward = percent_change
 
             if new_reward > 0:
                 reward = new_reward
                 state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
-                start_reward_receipt = str(start_workout_weight_lbs) + " " + str(start_workout_reps_completed) + " " + str(start_workout_average_velocity)
-                latest_reward_receipt = str(latest_workout_weight_lbs) + " " + str(latest_workout_reps_completed) + " " + str(latest_workout_average_velocity)
+                start_reward_receipt = str(start_workout_weight_lbs) + " " + str(start_workout_reps_completed) + " " + str(start_workout_max_velocity)
+                latest_reward_receipt = str(latest_workout_weight_lbs) + " " + str(latest_workout_reps_completed) + " " + str(latest_workout_max_velocity)
                 reward_receipt = str(state_h["current_exercise"]) + " " + str(start_reward_receipt) + " to " + str(latest_reward_receipt)
 
                 reward_log_human.append(reward_receipt)
@@ -2823,16 +2856,29 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # I think its ok to just use the missed reps by themselves as
         # a very weak penalty
 
-        last_workout_step = state_h["workoutxseries"][-1]
-        last_completed_reps = last_workout_step["reps_completed"]
-        last_planned_reps = last_workout_step["reps_planned"]
-        missed_reps_penalty = last_planned_reps - last_completed_reps
-        reward = reward - missed_reps_penalty
+        #last_workout_step = state_h["workoutxseries"][-1]
+        #last_completed_reps = last_workout_step["reps_completed"]
+        #last_planned_reps = last_workout_step["reps_planned"]
+        #missed_reps_penalty = last_planned_reps - last_completed_reps
+        #reward = reward - missed_reps_penalty
 
         # I thought about this some more
         # it might be ok to just subtract the weight from the reward as a penalty
         # because if all the reps didnt complete maybe it is a 'failed' set
 
+        # after i switched to percentage rewards this wrecks it
+        # bc the magnitude is so large compared to percentage
+        # lets see if the model can implicitly learn that training to failure is a bad idea?
+
+        # or lets try to convert this penalty to a percentage
+        #last_workout_step = state_h["workoutxseries"][-1]
+        #last_completed_reps = last_workout_step["reps_completed"]
+        #last_planned_reps = last_workout_step["reps_planned"]
+        #missed_reps_penalty = float(last_completed_reps)/float(last_planned_reps)
+        #missed_reps_penalty = missed_reps_penalty - 1
+        #reward = reward - missed_reps_penalty
+
+        #leave it out for now, try adding it back in later
 
         #------------------------------------------------------------------------------------------------------------
 
@@ -2876,6 +2922,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         #------------------------------------------------------------------------------------------------------------
 
+        #reward = reward - 0.001
 
         ABC = None
 
