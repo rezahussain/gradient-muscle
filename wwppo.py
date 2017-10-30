@@ -2310,7 +2310,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.80  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
