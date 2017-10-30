@@ -243,7 +243,11 @@ rl_all_possible_actions.append(NEXT_EXERCISE)
 
 #---------------------------------------------------------->
 
-def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day_vector_workout_day_index,unit_days):
+def convert_raw_json_day_vector_to_packaged_day(index,
+                                                some_json_objects,
+                                                last_day_vector_workout_day_index,
+                                                unit_days,
+                                                previous_day_index):
 
     # build day array
     # print xx
@@ -303,12 +307,19 @@ def convert_raw_json_day_vector_to_packaged_day(index,some_json_objects,last_day
     if last_day_vector_workout_day_index is not None:
         current_workout_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
         last_workout_yyyymmdd = some_json_objects[last_day_vector_workout_day_index]["day_vector"]["date_yyyymmdd"]
-        days_since_last_workout = calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd)
+        days_since_last_workout = calc_days_between_dates(current_workout_yyyymmdd, last_workout_yyyymmdd)
     else:
         days_since_last_workout = 0
     packaged_day["days_since_last_workout"] = days_since_last_workout
     if len(some_json_objects[xx]["workout_vector_arr"]) > 0:
         last_day_vector_workout_day_index = xx
+
+
+    current_day_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+    last_recorded_day_yyyymmdd = some_json_objects[previous_day_index]["day_vector"]["date_yyyymmdd"]
+    days_since_last_recorded_day = calc_days_between_dates(current_day_yyyymmdd, last_recorded_day_yyyymmdd)
+
+    packaged_day["days_since_last_recorded_day"] = days_since_last_recorded_day
 
     packaged_day["day_number"]=len(unit_days)
 
@@ -340,12 +351,27 @@ def make_raw_units():
 
             body_train_unit = None
 
+
+
+
             for xx in range(r[0], r[1] + 1):
 
                 debug_name = some_json_filenames[xx]
 
+                previous_day_index = None
+                if xx == r[0]:
+                    previous_day_index = xx
+                if xx > r[0]:
+                    previous_day_index = xx-1
+
                 packaged_day,last_day_vector_workout_day_index = \
-                    convert_raw_json_day_vector_to_packaged_day(xx,some_json_objects,last_day_vector_workout_day_index,unit_days)
+                    convert_raw_json_day_vector_to_packaged_day(xx,
+                                                                some_json_objects,
+                                                                last_day_vector_workout_day_index,
+                                                                unit_days,
+                                                                previous_day_index)
+
+
 
                 # if you modify the setup above make sure it is also modded
                 # in the pad unit_days below
@@ -521,6 +547,7 @@ def make_raw_units():
                         packaged_day_padded["sleeptime_deep_rem_hrs"] = -1
                         packaged_day_padded["days_since_last_workout"] = -1
                         packaged_day_padded["day_number"] = -1
+                        packaged_day_padded["days_since_last_recorded_day"] = -1
 
                         while len(unit_days_padded) < global_max_day_range_array_len:
                             unit_days_padded.insert(0, packaged_day_padded)
@@ -607,23 +634,36 @@ def make_raw_units():
 
 
                 if xx + 1 < len(some_json_objects) - 1 and body_train_unit is not None:
-                    packaged_day_after, last_day_vector_workout_day_index = \
-                        convert_raw_json_day_vector_to_packaged_day(xx, some_json_objects,
-                                        last_day_vector_workout_day_index, unit_days)
 
-                    packaged_dayy = {}
-                    packaged_dayy["withings_weight_lbs"] = packaged_day_after["withings_weight_lbs"]
-                    packaged_dayy["withings_muscle_mass_percent"] = packaged_day_after["withings_muscle_mass_percent"]
-                    packaged_dayy["withings_body_water_percent"] = packaged_day_after["withings_body_water_percent"]
-                    packaged_dayy["withings_heart_rate_bpm"] = packaged_day_after["withings_heart_rate_bpm"]
-                    packaged_dayy["withings_bone_mass_percent"] = packaged_day_after["withings_bone_mass_percent"]
-                    packaged_dayy["withings_pulse_wave_velocity_m_per_s"] = packaged_day_after["withings_pulse_wave_velocity_m_per_s"]
+                    current_day_yyyymmdd = some_json_objects[xx+1]["day_vector"]["date_yyyymmdd"]
+                    last_recorded_day_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+                    days_since_last_recorded_day = calc_days_between_dates(current_day_yyyymmdd,
+                                                                           last_recorded_day_yyyymmdd)
 
-                    body_train_unit["dayy"] = packaged_dayy
+                    # make body trainer only predict day after body state
+                    # do not feed it data where the day it is predicting is
+                    # like 3 days in the future
+                    # we only want it to predict one day into the future
+                    # since that is what we do when we do next_day in the rl
+                    # agent so that is what we want to simulate
 
-                    savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
-                    savename = savename + u.user_name
-                    pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
+                    if days_since_last_recorded_day == 1:
+                        packaged_day_after, last_day_vector_workout_day_index = \
+                            convert_raw_json_day_vector_to_packaged_day(xx+1, some_json_objects,
+                                            last_day_vector_workout_day_index, unit_days,xx)
+                        packaged_dayy = {}
+                        packaged_dayy["withings_weight_lbs"] = packaged_day_after["withings_weight_lbs"]
+                        packaged_dayy["withings_muscle_mass_percent"] = packaged_day_after["withings_muscle_mass_percent"]
+                        packaged_dayy["withings_body_water_percent"] = packaged_day_after["withings_body_water_percent"]
+                        packaged_dayy["withings_heart_rate_bpm"] = packaged_day_after["withings_heart_rate_bpm"]
+                        packaged_dayy["withings_bone_mass_percent"] = packaged_day_after["withings_bone_mass_percent"]
+                        packaged_dayy["withings_pulse_wave_velocity_m_per_s"] = packaged_day_after["withings_pulse_wave_velocity_m_per_s"]
+
+                        body_train_unit["dayy"] = packaged_dayy
+
+                        savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
+                        savename = savename + u.user_name
+                        pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
 
 
 
@@ -631,14 +671,14 @@ def make_raw_units():
 
 # ---------------------------------------------------------->
 
-def calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd):
-    cwyyyy = int(current_workout_yyyymmdd[0:4])
-    cwmm = int(current_workout_yyyymmdd[4:6])
-    cwdd = int(current_workout_yyyymmdd[6:8])
+def calc_days_between_dates(current_yyyymmdd, last_yyyymmdd):
+    cwyyyy = int(current_yyyymmdd[0:4])
+    cwmm = int(current_yyyymmdd[4:6])
+    cwdd = int(current_yyyymmdd[6:8])
 
-    lwyyyy = int(last_workout_yyyymmdd[0:4])
-    lwmm = int(last_workout_yyyymmdd[4:6])
-    lwdd = int(last_workout_yyyymmdd[6:8])
+    lwyyyy = int(last_yyyymmdd[0:4])
+    lwmm = int(last_yyyymmdd[4:6])
+    lwdd = int(last_yyyymmdd[6:8])
 
     cw_datetime = datetime.datetime(cwyyyy, cwmm, cwdd)
     lw_datetime = datetime.datetime(lwyyyy, lwmm, lwdd)
@@ -646,11 +686,11 @@ def calc_days_since_last_workout(current_workout_yyyymmdd, last_workout_yyyymmdd
     cw_timestamp = calendar.timegm(cw_datetime.timetuple())
     lw_timestamp = calendar.timegm(lw_datetime.timetuple())
 
-    days_since_last_workout = float(cw_timestamp - lw_timestamp) / (60 * 60 * 24)
-    if days_since_last_workout > CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
-        days_since_last_workout = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
+    days_since_last_whatever = float(cw_timestamp - lw_timestamp) / (60 * 60 * 24)
+    if days_since_last_whatever > CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP:
+        days_since_last_whatever = CONFIG.CONFIG_DAYS_SINCE_LAST_WORKOUT_CAP
 
-    return days_since_last_workout
+    return days_since_last_whatever
 
 
 # ---------------------------------------------------------->
@@ -2416,6 +2456,24 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         new_day = body_model_predict_new_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess)
 
+        new_day["day_number"] = new_day["day_number"]+1
+
+        # look to see how many days in a row we have skipped
+        actions_episode_log_human_copy = copy.deepcopy(actions_episode_log_human)
+        days_skipped = 0
+        did_find_day_skipped = True
+        while did_find_day_skipped and len(actions_episode_log_human_copy)>0:
+            entry = actions_episode_log_human_copy[-1]
+            check_string = "env "+LEAVE_GYM
+            if check_string in entry:
+                days_skipped = days_skipped+1
+                actions_episode_log_human_copy.pop()
+            else:
+                did_find_day_skipped = False
+
+        new_day["days_since_last_workout"] = days_skipped
+
+
         # can just take the last day and add it again
 
         a_day_series_h = np.append(a_day_series_h, copy.deepcopy(new_day))
@@ -2685,7 +2743,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             if len(start_workout_velocities) == 0:
                 no_reward_just_set_last_reward_detected_index = True
             else:
-                start_workout_average_velocity = np.mean(start_workout_velocities)
+                start_workout_average_velocity = np.amax(start_workout_velocities)
                 start_workout_force = float(start_workout_average_velocity) * float(start_workout_weight_lbs)
 
             latest_workout_step = state_h["workoutxseries"][-1]
@@ -2695,7 +2753,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             for iiii in range(int(math.floor(latest_workout_reps_completed))):
                 a_velocity = latest_workout_step["velocities_arr_" + str(iiii)]
                 latest_workout_velocities.append(a_velocity)
-            latest_workout_average_velocity = np.mean(latest_workout_velocities)
+            latest_workout_average_velocity = np.amax(latest_workout_velocities)
             latest_workout_force = latest_workout_average_velocity * latest_workout_weight_lbs
 
             # force here units are in lbs per meters/second oh boy
