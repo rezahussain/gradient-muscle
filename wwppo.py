@@ -803,9 +803,11 @@ def make_workout_step_human(
 
 
 def get_norm_values():
-    normVals = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
-    return normVals
-
+    #cache the values dont keep reloading
+    if get_norm_values.GLOBAL_NORM_VALS is None:
+        get_norm_values.GLOBAL_NORM_VALS = pickle.load(open(CONFIG.CONFIG_NORMALIZE_VALS_PATH, "rb"))
+    return get_norm_values.GLOBAL_NORM_VALS
+get_norm_values.GLOBAL_NORM_VALS = None
 
 def write_norm_values():
 
@@ -2310,7 +2312,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.95  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.96  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
@@ -2789,8 +2791,9 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             if start_workout_force > 0:
                 # looks like you have to have 1% as 1.00 not 0.01
                 # i think maybe because discounted returns makes it underflow and disappear otherwise?
-                percent_change = (latest_workout_force/start_workout_force)*100
+                percent_change = (latest_workout_force/start_workout_force)
                 percent_change = percent_change - 1.0
+                percent_change = percent_change * 100
 
             else:
                 percent_change = 0
@@ -2804,9 +2807,12 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                 reward = new_reward
                 state_h["lastrewarddetectedindexes"][rl_exercise_chosen_h] = len(state_h["workoutxseries"]) - 1
 
+
+
                 start_reward_receipt = str(start_workout_weight_lbs) + " " + str(start_workout_reps_completed) + " " + str(start_workout_max_velocity)
                 latest_reward_receipt = str(latest_workout_weight_lbs) + " " + str(latest_workout_reps_completed) + " " + str(latest_workout_max_velocity)
                 reward_receipt = str(state_h["current_exercise"]) + " " + str(start_reward_receipt) + " to " + str(latest_reward_receipt)
+                reward_receipt = reward_receipt + " " + "(" + str(start_workout_force) + "->" + str(latest_workout_force) + ")"
 
                 reward_log_human.append(reward_receipt)
 
@@ -2875,8 +2881,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #last_completed_reps = last_workout_step["reps_completed"]
         #last_planned_reps = last_workout_step["reps_planned"]
         #missed_reps_penalty = float(last_completed_reps)/float(last_planned_reps)
-        #missed_reps_penalty = missed_reps_penalty - 1
-        #reward = reward - missed_reps_penalty
+        #missed_reps_penalty = (missed_reps_penalty - 1)*100
+        #reward = reward + missed_reps_penalty
 
         #leave it out for now, try adding it back in later
 
@@ -3001,8 +3007,8 @@ def rl_provide_recommendation_based_on_latest(user_name):
 #generate_training_data()
 #train_body_model()
 #train_stress_adaptation_model()
-train_rl_agent()
-#rl_provide_recommendation_based_on_latest("rezahussain")
+#train_rl_agent()
+rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
