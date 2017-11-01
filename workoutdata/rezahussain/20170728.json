@@ -20,7 +20,7 @@
 		"post_day_protein_g":-1,
 		"post_day_carbs_g":-1,
 		"post_day_fat_g":-1,
-		"withings_daily_steps":-1,
+		"post_day_steps":3876.0,
 		"withings_weight_lbs":163.5,
 		"withings_heart_rate_bpm":77,
 		"withings_pulse_wave_velocity_m_per_s":7.8,

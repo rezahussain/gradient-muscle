@@ -20,6 +20,7 @@
 		"post_day_protein_g":-1,
 		"post_day_carbs_g":-1,
 		"post_day_fat_g":-1,
+		"post_day_steps":5059.0,
 		"withings_weight_lbs":159.2,
 		"withings_body_fat_percent":14.8,
 		"withings_muscle_mass_percent":81.2,
