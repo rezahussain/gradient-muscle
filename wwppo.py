@@ -2312,7 +2312,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.96  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.97  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
@@ -3004,11 +3004,11 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-#generate_training_data()
-#train_body_model()
+generate_training_data()
+train_body_model()
 #train_stress_adaptation_model()
 #train_rl_agent()
-rl_provide_recommendation_based_on_latest("rezahussain")
+#rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
