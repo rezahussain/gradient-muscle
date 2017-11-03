@@ -714,8 +714,13 @@ def make_raw_units():
 
 
 
-
-
+def get_num_days_between_pull_recovery():
+    if get_num_days_between_pull_recovery.GLOBAL_DAYS_BETWEEN_PULL_RECOVERY is None:
+        metadata = pickle.load(open(CONFIG.CONFIG_METADATA_PATH,"rb"))
+        val_we_want = metadata["days_between_pull_and_recovery"]
+        get_num_days_between_pull_recovery.GLOBAL_DAYS_BETWEEN_PULL_RECOVERY=val_we_want
+    return get_num_days_between_pull_recovery.GLOBAL_DAYS_BETWEEN_PULL_RECOVERY
+get_num_days_between_pull_recovery.GLOBAL_DAYS_BETWEEN_PULL_RECOVERY = None
 
 
 
@@ -2467,6 +2472,57 @@ def body_model_predict_new_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_g
     return new_h_day
 
 
+
+
+def agent_world_add_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess,actions_episode_log_human,state_h,state):
+    new_day = body_model_predict_new_day(a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, sess)
+
+    new_day["day_number"] = new_day["day_number"] + 1
+
+    # look to see how many days in a row we have skipped
+    actions_episode_log_human_copy = copy.deepcopy(actions_episode_log_human)
+    days_skipped = 0
+    did_find_day_skipped = True
+    while did_find_day_skipped and len(actions_episode_log_human_copy) > 0:
+        entry = actions_episode_log_human_copy[-1]
+        check_string = "env " + LEAVE_GYM
+        if check_string in entry:
+            days_skipped = days_skipped + 1
+            actions_episode_log_human_copy.pop()
+        else:
+            did_find_day_skipped = False
+
+    new_day["days_since_last_workout"] = days_skipped
+
+    # can just take the last day and add it again
+
+    a_day_series_h = np.append(a_day_series_h, copy.deepcopy(new_day))
+    a_day_series_h = np.delete(a_day_series_h, 0)
+    # ^^remove first item to keep the array size the same
+
+    state_h['dayseriesx'] = a_day_series_h
+    state_h['userx'] = state['userx']
+    state_h['workoutxseries'] = state['workoutxseries']
+
+    # need this cuz we want the rl to learn across workouts
+    # and doing next exercise depletes this so you cannot
+    # do LEAVEGYM and keep going unless you replenish
+    state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
+
+    state_h["current_exercise"] = state_h["exercises_left"][0]
+    state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
+    state_h["current_reps"] = CONFIG.STARTING_REPS
+    state_h["set_number_of_the_day"] = 0
+
+    actions_episode_log_human.append("env " + LEAVE_GYM)
+
+    return a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess,actions_episode_log_human,\
+           state_h,state
+
+    # print "env LEAVEGYM"
+
+
+
 def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_human,reward_log_human):
 
     # run through the lift world
@@ -2507,49 +2563,12 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
 
     if LEAVE_GYM in action:
-
-        new_day = body_model_predict_new_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess)
-
-        new_day["day_number"] = new_day["day_number"]+1
-
-        # look to see how many days in a row we have skipped
-        actions_episode_log_human_copy = copy.deepcopy(actions_episode_log_human)
-        days_skipped = 0
-        did_find_day_skipped = True
-        while did_find_day_skipped and len(actions_episode_log_human_copy)>0:
-            entry = actions_episode_log_human_copy[-1]
-            check_string = "env "+LEAVE_GYM
-            if check_string in entry:
-                days_skipped = days_skipped+1
-                actions_episode_log_human_copy.pop()
-            else:
-                did_find_day_skipped = False
-
-        new_day["days_since_last_workout"] = days_skipped
+        a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,\
+        sess,actions_episode_log_human,state_h,state = agent_world_add_day(
+            a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess,
+                            actions_episode_log_human,state_h,state)
 
 
-        # can just take the last day and add it again
-
-        a_day_series_h = np.append(a_day_series_h, copy.deepcopy(new_day))
-        a_day_series_h = np.delete(a_day_series_h, 0)
-        #^^remove first item to keep the array size the same
-
-        state_h['dayseriesx'] = a_day_series_h
-        state_h['userx'] = state['userx']
-        state_h['workoutxseries'] = state['workoutxseries']
-
-        #need this cuz we want the rl to learn across workouts
-        #and doing next exercise depletes this so you cannot
-        #do LEAVEGYM and keep going unless you replenish
-        state_h["exercises_left"] = copy.deepcopy(CHOOSABLE_EXERCISES)
-
-        state_h["current_exercise"] = state_h["exercises_left"][0]
-        state_h["current_weight"] = CONFIG.MINIMUM_WEIGHT
-        state_h["current_reps"] = CONFIG.STARTING_REPS
-        state_h["set_number_of_the_day"] = 0
-
-        actions_episode_log_human.append("env "+LEAVE_GYM)
-        #print "env LEAVEGYM"
 
 
     action_exercise_name_human = state_h["current_exercise"]
@@ -2954,7 +2973,8 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # it maes it very conservative about picking weights
         # and then it starts picking 45 lbs bc those have the lowest chance
 
-        # but then again using a probability will make it less deterministic
+        # but then again using a probability will make it harder for rl agent to learn
+        # bc its less deterministic
         # bc you could have the same action sequence twice with different results
         # which will confuse the nn
         # consider doing a fixed percentage, eg 65%?(1STD)
@@ -3056,10 +3076,10 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-generate_training_data()
+#generate_training_data()
 #train_body_model()
 #train_stress_adaptation_model()
-#train_rl_agent()
+train_rl_agent()
 #rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
