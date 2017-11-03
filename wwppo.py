@@ -2519,7 +2519,7 @@ def agent_world_add_day(a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,se
     return a_day_series_h,a_user_x_h,a_workout_series_h,ai_graph,sess,actions_episode_log_human,\
            state_h,state
 
-    # print "env LEAVEGYM"
+    #print "env LEAVEGYM"
 
 
 
@@ -2979,12 +2979,33 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         # which will confuse the nn
         # consider doing a fixed percentage, eg 65%?(1STD)
 
+
         last_workout_step = state_h["workoutxseries"][-1]
         did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
         if did_pull_muscle_chance > 0.95:
+
+            #you can also reduce the episode size as a result of lost days
+            #but I think its fine to just let the agent take actions
+            #from the new state after x days to recover are added
+
             #simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
             #if simulate_pulled_muscle is True:
-            end_episode = True
+            #end_episode = True
+            days_to_recover_from_pulled_muscle = int(get_num_days_between_pull_recovery())
+
+            for dtr in range(days_to_recover_from_pulled_muscle):
+                a_day_series_h = state_h['dayseriesx']
+                a_user_x = state_h['userx']
+                a_workout_series_h = state_h['workoutxseries']
+                state['workoutxseries'] = a_workout_series_h
+                state['userx'] = a_user_x
+                a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, \
+                sess, actions_episode_log_human, state_h, state = agent_world_add_day(
+                    a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, sess,
+                    actions_episode_log_human, state_h, state)
+
+
+
 
         #------------------------------------------------------------------------------------------------------------
 
