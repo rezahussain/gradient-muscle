@@ -328,6 +328,11 @@ def convert_raw_json_day_vector_to_packaged_day(index,
 
 def make_raw_units():
 
+
+    pulled_muscle_dates = []
+    waiting_on_pulled_muscle = True
+
+
     for u in global_user_objs:
 
         some_workout_ranges = u.workout_ranges
@@ -373,6 +378,7 @@ def make_raw_units():
 
 
 
+
                 # if you modify the setup above make sure it is also modded
                 # in the pad unit_days below
                 unit_days.append(packaged_day)
@@ -386,6 +392,9 @@ def make_raw_units():
                 # save the last work set day whole unit
                 # bc its all of the sets for the day that are responsible for
                 # the body state the next day
+
+
+
 
 
 
@@ -404,6 +413,22 @@ def make_raw_units():
 
                         used_lifting_gear = some_json_objects[xx]["workout_vector_arr"][ii]["used_lifting_gear"]
                         vmpsa = some_json_objects[xx]["workout_vector_arr"][ii]["velocities_m_per_s_arr"]
+
+
+                        if did_pull_muscle and waiting_on_pulled_muscle:
+                            p_day_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+                            if p_day_yyyymmdd not in pulled_muscle_dates:
+                                pulled_muscle_dates.append(p_day_yyyymmdd)
+                                waiting_on_pulled_muscle = False
+                        if not waiting_on_pulled_muscle:
+                            p_day_yyyymmdd = some_json_objects[xx]["day_vector"]["date_yyyymmdd"]
+                            if p_day_yyyymmdd not in pulled_muscle_dates:
+                                pulled_muscle_dates.append(p_day_yyyymmdd)
+                                waiting_on_pulled_muscle = True
+
+
+
+
 
 
                         # lets say you have days_since_last_workout all 1
@@ -664,6 +689,33 @@ def make_raw_units():
                         savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
                         savename = savename + u.user_name
                         pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
+
+
+
+    #now figure out avg_pulled_muscle time
+    days_between_pull_recovery = []
+    pp = 0
+    if len(pulled_muscle_dates) % 2 == 1:
+        pulled_muscle_dates.pop()
+    while pp < len(pulled_muscle_dates):
+        pulled_date = pulled_muscle_dates[pp+0]
+        resume_date = pulled_muscle_dates[pp+1]
+        pprr = calc_days_between_dates(pulled_date,resume_date)
+        days_between_pull_recovery.append(pprr)
+        pp = pp+2
+
+    days_between_pull_recovery = np.array(days_between_pull_recovery)
+    num_days_between_pull_recovery = np.mean(days_between_pull_recovery)
+
+    metadata = {}
+    metadata["days_between_pull_and_recovery"] = num_days_between_pull_recovery
+    pickle.dump(metadata, open(CONFIG.CONFIG_METADATA_PATH, "wb"))
+    ABC = None
+
+
+
+
+
 
 
 
@@ -2312,7 +2364,7 @@ def walk_episode_with_sample(a_sample_name,
         # or just set it low and train forever
 
 
-        percent_done = 0.97  # float(aepoch)/float(NUM_EPOCHS)
+        percent_done = 0.99  # float(aepoch)/float(NUM_EPOCHS)
         #percent_done = 0.10
         random_prob = 1.0 - percent_done
         not_random_prob = 1.0 - random_prob
@@ -2909,7 +2961,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         last_workout_step = state_h["workoutxseries"][-1]
         did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
-        if did_pull_muscle_chance > 0.65:
+        if did_pull_muscle_chance > 0.95:
             #simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
             #if simulate_pulled_muscle is True:
             end_episode = True
@@ -2917,14 +2969,14 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         #------------------------------------------------------------------------------------------------------------
 
         #can do the same thing for failure, if fail end the episode
-
+        '''
         last_workout_step = state_h["workoutxseries"][-1]
         did_failure_chance = float(last_workout_step["went_to_failure"])
         if did_failure_chance > 0.65:
             #simulate_failure = np.random.choice([True,False],p=[did_failure_chance,1-did_failure_chance])
             #if simulate_failure is True:
             end_episode = True
-
+        '''
 
         #------------------------------------------------------------------------------------------------------------
 
@@ -3006,7 +3058,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 generate_training_data()
 #train_body_model()
-train_stress_adaptation_model()
+#train_stress_adaptation_model()
 #train_rl_agent()
 #rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
