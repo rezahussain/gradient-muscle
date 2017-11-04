@@ -427,10 +427,6 @@ def make_raw_units():
                                 waiting_on_pulled_muscle = True
 
 
-
-
-
-
                         # lets say you have days_since_last_workout all 1
                         # it cant know when a new workout started
                         # it probably thinks of it all as one workout
@@ -686,9 +682,22 @@ def make_raw_units():
 
                         body_train_unit["dayy"] = packaged_dayy
 
-                        savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
-                        savename = savename + u.user_name
-                        pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
+                        has_all_body_y = False
+                        if (
+                            packaged_day["withings_weight_lbs"] is not -1
+                            and packaged_day["withings_muscle_mass_percent"] is not -1
+                            and packaged_day["withings_body_water_percent"] is not -1
+                            and packaged_day["withings_heart_rate_bpm"] is not -1
+                            and packaged_day["withings_bone_mass_percent"] is not -1
+                            and packaged_day["withings_pulse_wave_velocity_m_per_s"] is not -1
+                        ):
+                            has_all_body_y = True
+
+
+                        if has_all_body_y:
+                            savename = some_json_objects[xx]["day_vector"]["date_yyyymmdd"] + "_"
+                            savename = savename + u.user_name
+                            pickle.dump(body_train_unit, open(CONFIG.CONFIG_NN_BODY_MODEL_PICKLES_PATH + savename, "wb"))
 
 
 
@@ -2982,34 +2991,35 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
 
         last_workout_step = state_h["workoutxseries"][-1]
         did_pull_muscle_chance = float(last_workout_step["did_pull_muscle"])
+
         if did_pull_muscle_chance > 0.95:
 
             #you can also reduce the episode size as a result of lost days
             #but I think its fine to just let the agent take actions
             #from the new state after x days to recover are added
 
-            #simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
-            #if simulate_pulled_muscle is True:
-            #end_episode = True
-            days_to_recover_from_pulled_muscle = int(get_num_days_between_pull_recovery())
+            if did_pull_muscle_chance > 0.0:
+                should_simulate_pulled_muscle = np.random.choice([True,False],p=[did_pull_muscle_chance,1-did_pull_muscle_chance])
 
-            for dtr in range(days_to_recover_from_pulled_muscle):
-                a_day_series_h = state_h['dayseriesx']
-                a_user_x = state_h['userx']
-                a_workout_series_h = state_h['workoutxseries']
-                state['workoutxseries'] = a_workout_series_h
-                state['userx'] = a_user_x
-                a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, \
-                sess, actions_episode_log_human, state_h, state = agent_world_add_day(
-                    a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, sess,
-                    actions_episode_log_human, state_h, state)
+                #if should_simulate_pulled_muscle is True:
 
+                days_to_recover_from_pulled_muscle = int(get_num_days_between_pull_recovery())
 
-
+                for dtr in range(days_to_recover_from_pulled_muscle):
+                    a_day_series_h = state_h['dayseriesx']
+                    a_user_x = state_h['userx']
+                    a_workout_series_h = state_h['workoutxseries']
+                    state['workoutxseries'] = a_workout_series_h
+                    state['userx'] = a_user_x
+                    a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, \
+                    sess, actions_episode_log_human, state_h, state = agent_world_add_day(
+                        a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, sess,
+                        actions_episode_log_human, state_h, state)
 
         #------------------------------------------------------------------------------------------------------------
 
         #can do the same thing for failure, if fail end the episode
+        #no let it figure out failure is bad by itself
         '''
         last_workout_step = state_h["workoutxseries"][-1]
         did_failure_chance = float(last_workout_step["went_to_failure"])
