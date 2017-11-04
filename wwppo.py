@@ -675,6 +675,7 @@ def make_raw_units():
                         packaged_dayy = {}
                         packaged_dayy["withings_weight_lbs"] = packaged_day_after["withings_weight_lbs"]
                         packaged_dayy["withings_muscle_mass_percent"] = packaged_day_after["withings_muscle_mass_percent"]
+                        packaged_dayy["withings_body_fat_percent"] = packaged_day_after["withings_body_fat_percent"]
                         packaged_dayy["withings_body_water_percent"] = packaged_day_after["withings_body_water_percent"]
                         packaged_dayy["withings_heart_rate_bpm"] = packaged_day_after["withings_heart_rate_bpm"]
                         packaged_dayy["withings_bone_mass_percent"] = packaged_day_after["withings_bone_mass_percent"]
@@ -2541,9 +2542,15 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
     # need to parse action and insert it into the liftworld input
     # get the output
 
+
+
     a_day_series_h = state['dayseriesx']
     a_user_x_h = state['userx']
     a_workout_series_h = state['workoutxseries']
+
+    # ----------------------------------------------------------
+
+    before_day_change = copy.deepcopy(a_day_series_h[-1])
 
     # ----------------------------------------------------------
 
@@ -3011,6 +3018,7 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
                     a_workout_series_h = state_h['workoutxseries']
                     state['workoutxseries'] = a_workout_series_h
                     state['userx'] = a_user_x
+
                     a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, \
                     sess, actions_episode_log_human, state_h, state = agent_world_add_day(
                         a_day_series_h, a_user_x_h, a_workout_series_h, ai_graph, sess,
@@ -3030,6 +3038,27 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         '''
 
         #------------------------------------------------------------------------------------------------------------
+
+        after_day_change = copy.deepcopy(state_h['dayseriesx'][-1])
+        if not before_day_change == after_day_change:
+
+            before_bf = before_day_change["withings_body_fat_percent"]
+            after_bf = after_day_change["withings_body_fat_percent"]
+
+            before_mm = before_day_change["withings_muscle_mass_percent"]
+            after_mm = after_day_change["withings_muscle_mass_percent"]
+
+            bf_percent_change = (after_bf/before_bf)-1.0
+            mm_percent_change = (after_mm/before_mm)-1.0
+
+            body_reward_receipt = "bf:"+str(bf_percent_change)+" mm:"+str(mm_percent_change)
+            reward_log_human.append(body_reward_receipt)
+
+            reward = reward + bf_percent_change + mm_percent_change
+
+
+
+        #----------------------------------------------------------------------------------------------------------
 
         #reward = reward - 0.001
 
