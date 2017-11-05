@@ -2600,9 +2600,15 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         rep_adjustment = action.split("=")[1]
         action_planned_reps_human = action_planned_reps_human + float(rep_adjustment)
         if action_planned_reps_human < CONFIG.CONFIG_MIN_REPS_PER_SET:
-            action_planned_reps_human = CONFIG.CONFIG_MIN_REPS_PER_SET
+            #if agent goes out of bounds do nothing to teach it nothing happens
+            #when it tries that
+            return state_h, reward, actions_episode_log_human, end_episode, reward_log_human
+            #action_planned_reps_human = CONFIG.CONFIG_MIN_REPS_PER_SET
         if action_planned_reps_human > CONFIG.CONFIG_MAX_REPS_PER_SET:
-            action_planned_reps_human = CONFIG.CONFIG_MAX_REPS_PER_SET
+            #if agent goes out of bounds do nothing to teach it nothing happens
+            #when it tries that
+            return state_h, reward, actions_episode_log_human, end_episode, reward_log_human
+            #action_planned_reps_human = CONFIG.CONFIG_MAX_REPS_PER_SET
 
     #print action_planned_reps_human
 
@@ -2628,9 +2634,15 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
         new_weight_lbs = action_planned_weight_human
 
         if new_weight_lbs < CONFIG.MINIMUM_WEIGHT:
-            new_weight_lbs = CONFIG.MINIMUM_WEIGHT
+            #if agent goes out of bounds do nothing to teach it nothing happens
+            #when it tries that
+            return state_h, reward, actions_episode_log_human, end_episode, reward_log_human
+            #new_weight_lbs = CONFIG.MINIMUM_WEIGHT
         if new_weight_lbs > CONFIG.MAXIMUM_WEIGHT:
-            new_weight_lbs = CONFIG.MAXIMUM_WEIGHT
+            #if agent goes out of bounds do nothing to teach it nothing happens
+            #when it tries that
+            return state_h, reward, actions_episode_log_human, end_episode, reward_log_human
+            #new_weight_lbs = CONFIG.MAXIMUM_WEIGHT
 
         weight_lbs = new_weight_lbs
 
@@ -3048,13 +3060,18 @@ def agent_world_take_step(state, action, ai_graph, sess,actions_episode_log_huma
             before_mm = before_day_change["withings_muscle_mass_percent"]
             after_mm = after_day_change["withings_muscle_mass_percent"]
 
+
             bf_percent_change = (after_bf/before_bf)-1.0
+
+
+            #find out how much it went up
             mm_percent_change = (after_mm/before_mm)-1.0
 
             body_reward_receipt = "bf:"+str(bf_percent_change)+" mm:"+str(mm_percent_change)
             reward_log_human.append(body_reward_receipt)
 
-            reward = reward + bf_percent_change + mm_percent_change
+            # inverse bf bc we want it to go down
+            reward = reward + (bf_percent_change * -1.0) + mm_percent_change
 
 
 
@@ -3102,6 +3119,10 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
     state = {}
 
+    #this can be max 300
+    #bc after 300 with the discounted reward
+    #the values pretty much diminish to nothing
+
     EPISODE_LENGTH = 40
 
     actions_episode_log_human = []
@@ -3139,8 +3160,8 @@ def rl_provide_recommendation_based_on_latest(user_name):
 #generate_training_data()
 #train_body_model()
 #train_stress_adaptation_model()
-train_rl_agent()
-#rl_provide_recommendation_based_on_latest("rezahussain")
+#train_rl_agent()
+rl_provide_recommendation_based_on_latest("rezahussain")
 sys.exit()
 
 
