@@ -3119,8 +3119,8 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
     state = {}
 
-    #this can be max 300
-    #bc after 300 with the discounted reward
+    #episode length can be max 300
+    #bc after 300 with the 0.99 discounted reward
     #the values pretty much diminish to nothing
 
     EPISODE_LENGTH = 40
