@@ -1,0 +1,47 @@
+{
+	"user_vector":
+	{
+		"genetically_gifted":0,
+		"years_old":31,
+		"wrist_width_inches":7,
+		"ankle_width_inches":9,
+		"sex_is_male":1,
+		"height_inches":70.0,
+		"harris_benedict_bmr":-1
+	}
+	,
+	"day_vector":
+	{
+		"hashtags":[],
+		"date_yyyymmdd":"20171007",
+		"heart_rate_variability_rmssd":-1,
+		"post_day_wearable_calories_burned":-1,
+		"post_day_calories_in":-1,
+		"post_day_protein_g":-1,
+		"post_day_carbs_g":-1,
+		"post_day_fat_g":-1,
+		"post_day_steps":538.0,
+		"withings_weight_lbs":162.0,
+		"withings_heart_rate_bpm":-1,
+		"withings_pulse_wave_velocity_m_per_s":-1,
+		"withings_body_fat_percent":17.1,
+		"withings_muscle_mass_percent":78.9,
+		"withings_bone_mass_percent":3.9,
+		"withings_body_water_percent":55.1,
+		
+		
+		"sleeptime_bed_time_ampm":"01:32am",
+		"sleeptime_rise_time_ampm":"08:47am",
+		"sleeptime_efficiency_percent":94.0,
+		"sleeptime_alarm_ring_ampm":-1,
+		"sleeptime_alarm_set_ampm":"10:00am",
+		"sleeptime_snoozed":0,
+		"sleeptime_awake_hrs":"00:23",
+		"sleeptime_light_sleep_hrs":"03:14",
+		"sleeptime_deep_rem_hrs":"03:37"
+	},
+	"workout_vector_arr":
+	[
+		
+	]
+}
