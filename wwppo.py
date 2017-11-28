@@ -3157,7 +3157,7 @@ def rl_provide_recommendation_based_on_latest(user_name):
 
 
 
-generate_training_data()
+#generate_training_data()
 #train_body_model()
 #train_stress_adaptation_model()
 #train_rl_agent()
